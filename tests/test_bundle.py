@@ -42,5 +42,29 @@ class BundledNodeTests(unittest.TestCase):
             self.assertEqual(args.count("--add-priority-node"), 2)
 
 
+    def test_intentional_isolation_when_peer_is_empty(self):
+        # Blank peer must still isolate a developer node even though the
+        # Core itself contains its own two VMRX mainnet bootstrap candidates.
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / ("vmrxd.exe" if os.name == "nt" else "vmrxd")
+            exe.write_bytes(b"test fixture")
+            exe.chmod(0o755)
+            args = node_process.build_args(str(exe), str(Path(tmp) / "chain"), 29781, 29780, "")
+            self.assertIn("--add-exclusive-node", args)
+            self.assertIn("127.0.0.1:1", args)
+            self.assertNotIn("--add-priority-node", args)
+
+    def test_custom_preferred_peer_preserves_vmrX_bootstrap(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / ("vmrxd.exe" if os.name == "nt" else "vmrxd")
+            exe.write_bytes(b"test fixture")
+            exe.chmod(0o755)
+            args = node_process.build_args(str(exe), str(Path(tmp) / "chain"), 29781, 29780, "10.1.1.9:29780")
+            self.assertEqual(args.count("--add-priority-node"), 3)
+            self.assertIn("10.1.1.9:29780", args)
+            self.assertIn("31.70.81.5:29780", args)
+            self.assertIn("217.154.93.20:29780", args)
+
+
 if __name__ == "__main__":
     unittest.main()
