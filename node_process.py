@@ -23,10 +23,10 @@ def find_bundled_daemon() -> str:
     root = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
             else Path(__file__).resolve().parent)
     candidates = (
-        root / "core" / "monerod.exe",
         root / "core" / "vmrxd.exe",
-        root / "core" / "monerod",
+        root / "core" / "monerod.exe",
         root / "core" / "vmrxd",
+        root / "core" / "monerod",
     )
     for candidate in candidates:
         if candidate.is_file() and (os.name == "nt" or os.access(candidate, os.X_OK)):
