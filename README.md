@@ -1,86 +1,86 @@
-# VMRX Node & Miner Desktop — RC Preview
+# VMRX Node & Miner
 
-**Windows / Linux** · Python 3.12 + Tkinter · Local daemon RPC only
+<p align="center"><img src="assets/vmrx-logo.png" alt="Official VMRX logo" width="144"></p>
 
-A desktop control panel for your existing VMRX RandomX daemon. The GUI lets you inspect the blockchain and peers, see mining hashrate, start/stop CPU mining, and launch or stop **only** a daemon you started in this GUI.
+**VargaMesh RX · Windows / Linux · RandomX CPU mining and local node controller**
 
-> **Preview, not a production wallet.** This package includes no VMRX Core executable and no seed/private-key handling. The proposed build workflow produces preview executables, not a full installer or verified stable release.
+[Latest release](https://github.com/ati1993de/vmrx-node-miner/releases/latest) · [VMRX Core](https://github.com/ati1993de/vmrx-core) · [Security](SECURITY.md)
+
+VMRX Node & Miner is a desktop application for monitoring and controlling a **local VMRX daemon**. It shows blockchain height, peer count, difficulty, synchronization, chain tip and mining hashrate; it can start/stop CPU mining on a connected local daemon. All RPC traffic goes to `127.0.0.1`.
+
+> **Important:** This application is a node/miner **controller**, not a complete wallet. Neither release includes a Windows Core daemon. Windows mining requires a separately built, compatible Windows VMRX Core. Linux users must install the Linux VMRX Core separately. The GUI does not hold funds or accept mnemonic seeds.
 
 ## Features
 
-| Feature | In this source |
+| Feature | v0.1.0 |
 | --- | --- |
-| Network dashboard: height, difficulty, peers, chain tip | Yes |
-| Real-time synchronization state | Yes (local daemon RPC) |
-| RandomX mining status, H/s | Yes |
-| Start mining with address + thread selection | Yes, confirmation required |
-| Stop daemon mining | Yes, confirmation required |
-| Launch/stop owned VMRX daemon binary | Yes, local-only |
-| Connect to an existing local node | Yes |
-| Windows and Linux build workflow | Yes, not yet independently run |
-| Local wallet balance, send, restore, seed handling | **Not implemented** |
-| Remote public RPC / public seed management | **Intentionally not implemented** |
-| Bundled VMRX core or Windows installer | **Not supplied** |
+| Local blockchain height, difficulty, peers and chain tip | Yes |
+| Synchronization and RandomX hashrate | Yes |
+| CPU mining start / stop with confirmation | Yes — daemon required |
+| Choose CPU threads and verified mining address | Yes |
+| Select and launch a local VMRX node executable | Yes — daemon supplied separately |
+| Windows x64, Linux x86_64 GUI binaries | Yes |
+| Bundled Windows Core / Windows full node | **No** |
+| Sending, receiving, restoring a wallet or seed handling | **Not implemented** |
+| Installer, signed binaries or external security audit | **Not provided** |
 
-## Run directly (from source)
+## Download & run
 
-### Linux Ubuntu 24.04+
+Download the relevant archive and `SHA256SUMS` from [Releases](https://github.com/ati1993de/vmrx-node-miner/releases/latest); verify the archive before running.
+
+### Windows 10 / 11 x64
+
+Extract `VMRX-Node-Miner-windows-x64.zip` and launch `VMRX-Node-Miner.exe`. The GUI will show **Offline** until a compatible **Windows VMRX Core daemon** is installed separately and listening on local RPC port `29781`. There is presently **no native Windows Core binary** in the Core releases, so the GUI does not yet provide a standalone Windows node/mining installation.
+
+### Linux x86_64 desktop
+
+Extract `VMRX-Node-Miner-linux-x86_64.tar.gz` and run `./VMRX-Node-Miner` **in a graphical desktop session**. Separately download and verify the Linux Core from [VMRX Core releases](https://github.com/ati1993de/vmrx-core/releases/latest). In **Node Control**, select the released VMRX daemon (`monerod` in the present fork), choose a fresh data directory and launch it. Wait for sync before enabling CPU mining.
+
+A VMRX-only peer `31.70.81.5:29780` is prefilled (observed by the operator; availability not guaranteed). Never connect to upstream Monero peers or reuse Monero/VMESH data directories. P2P and RPC bind to loopback in this controller; running a public seed node is a separate administrative task.
+
+### Dashboard says Offline / WinError 10061
+
+This means no daemon currently accepts connections at `127.0.0.1:29781`. Open **Node Control** to select/start VMRX Core. It is not a browser/server login failure. The Windows GUI alone cannot start mining without a separate compatible native Windows node.
+
+## Running from source
+
+Linux **desktop** (not headless VPS):
 
 ```bash
 sudo apt-get install -y python3 python3-tk
 python3 app.py
 ```
 
-### Windows
-
-Install Python 3.12 with the standard Tcl/Tk option enabled. Run:
+Windows with Python 3.12 and Tk support:
 
 ```powershell
 py -3.12 app.py
 ```
 
-The dashboard connects by default to `http://127.0.0.1:29781` (VMRX daemon local RPC). An existing daemon must be running, or you may select your *verified* `vmrxd` / `monerod` executable in **Node Control**.
+`py -3.12` is a **Windows-specific command**, not a Linux command. Tkinter cannot open a window on an SSH-only Ubuntu server without `DISPLAY`.
 
-### Node-control safety defaults
-
-- RPC **always** on `127.0.0.1`; the GUI never permits an arbitrary remote RPC host.
-- When the GUI launches a daemon, P2P binds to localhost by default; this isn't a public seed-node installer.
-- If no VMRX peer is provided, the GUI adds `--add-exclusive-node 127.0.0.1:1` to keep the node isolated. Add an independently checked VMRX-only peer to actually synchronize.
-- No Monero seed nodes; VMRX and Monero networks must never be mixed.
-- Node Stop only terminates a process launched by this app. It never stops the operator's existing systemd service.
-- If the daemon isn't synchronized, mining won't start. Mining control relies on `start_mining`, `mining_status`, `stop_mining` from the local daemon.
-- RPC may expose sensitive data or dangerous commands. Do not bind unrestricted RPC to a public address.
-
-## Build preview executables
-
-Install build-only tools:
+## Building and testing
 
 ```bash
-python -m pip install -r requirements-build.txt
-```
-
-Linux:
-
-```bash
+python3 -m unittest discover -s tests -v
+python3 -m pip install -r requirements-build.txt
 bash scripts/build-linux.sh
-# dist/VMRX-Node-Miner
 ```
 
-Windows PowerShell (run on a **Windows build machine**):
+On Windows run `scripts/build-windows.ps1`. Tagging `v0.1.0` triggers Windows/Linux GitHub Actions builds and then publishes the release only if **both GUI builds and tests succeed**. Build success is not evidence of working Windows Core, independent network consensus, recoverable wallets, or reproducible/security-audited binaries.
 
-```powershell
-./scripts/build-windows.ps1
-# dist/VMRX-Node-Miner.exe
-```
+## Branding
 
-A GitHub Actions workflow `.github/workflows/build-preview.yml` builds artifacts on `ubuntu-24.04` and `windows-latest`. Check its test results and artifact checksums. On Git tags matching `v*`, after both builds and tests pass, GitHub Actions **publishes a prerelease** containing the two GUI preview archives and SHA256SUMS. This does not bundle VMRX Core.
+The desktop icon, header, README and release project imagery are derived from the **owner-provided** `assets/vmrx-logo.png`. Other supplied graphics are stored under [`assets/branding/`](assets/ASSETS.md). Placeholder draft icons are not used by this version.
 
-**Note:** the Linux GUI build is a bundled Python executable, not an AppImage/.deb and does not bundle VMRX core or all host GUI libraries. A Windows Core daemon binary must be built separately from verified VMRX source for local-node start functionality.
+## Security & disclosure
 
-## Attribution & branding
+- Local-only daemon RPC; never expose unrestricted RPC on a public IP.
+- Mining consumes CPU power and electricity. Always verify the payout address.
+- No wallet files, passwords, mnemonic seed phrases, transaction signing, or on-chain transfers are implemented.
+- VMRX is a **separate Monero-derived RandomX** chain, not SHA256d/AuxPoW VMESH.
+- See [VMRX Core](https://github.com/ati1993de/vmrx-core) for the **200,000 VMRX founder premine** and other network parameters.
 
-The artwork in `assets/` is labeled `DRAFT`. Replace it with official approved VMRX assets before publishing. The VMRX core is derived from Monero; preserve all upstream notices in the separate Core project.
+## License
 
-## Security note
-
-Never paste wallet seeds or private keys into this GUI, an issue, or build logs. Wallet operations should use a separately audited component. The sample UI is an early Node/Miner controller and its correctness has not been independently audited.
+Respect the repository license and all upstream third-party notices; the VMRX daemon is maintained separately under the Core repository.

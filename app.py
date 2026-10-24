@@ -1,4 +1,4 @@
-"""VMRX Node & Miner — local-only desktop dashboard (release candidate).
+"""VMRX Node & Miner v0.1.0 — local-only desktop controller.
 
 Requires only Python 3.12 + Tkinter at runtime. No seed phrase or wallet keys.
 """
@@ -24,7 +24,7 @@ TEXT, MUTED, CYAN, GREEN, AMBER = "#e8f2fa", "#a2b5c6", "#2ed7dc", "#63dab5", "#
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("VMRX · Node & Miner — RC Preview")
+        self.title("VMRX · Node & Miner v0.1.0")
         self.geometry("920x680")
         self.minsize(820, 590)
         self.configure(bg=BG)
@@ -33,7 +33,7 @@ class App(tk.Tk):
         self.poll_pending = False
         self.rpc_port = tk.StringVar(value="29781")
         self.p2p_port = tk.StringVar(value="29780")
-        self.peer = tk.StringVar(value="")
+        self.peer = tk.StringVar(value="31.70.81.5:29780")
         self.node_exe = tk.StringVar(value="")
         self.node_dir = tk.StringVar(value=str(Path.home() / ".vmrx-node"))
         self.address = tk.StringVar(value="")
@@ -41,7 +41,7 @@ class App(tk.Tk):
         self.background_mining = tk.BooleanVar(value=False)
         self.fields = {key: tk.StringVar(value="—") for key in
                        ("height", "difficulty", "peers", "sync", "mining", "speed", "hash", "node")}
-        self.status = tk.StringVar(value="Ready · local RPC only")
+        self.status = tk.StringVar(value="Waiting for a local VMRX node · use Node Control to select the daemon")
         self._style()
         self._build()
         self.after(150, self._drain)
@@ -70,10 +70,13 @@ class App(tk.Tk):
         bar = tk.Frame(self, bg=BG)
         bar.pack(fill="x", padx=28, pady=(21, 15))
         try:
-            self.brand_icon = tk.PhotoImage(file=str(ROOT / "assets" / "vmrx-draft.png"))
-            self.brand_icon = self.brand_icon.subsample(11, 11)
+            self.app_icon = tk.PhotoImage(file=str(ROOT / "assets" / "vmrx-logo.png"))
+            self.brand_icon = self.app_icon.subsample(
+                max(1, (self.app_icon.width() + 51) // 52),
+                max(1, (self.app_icon.height() + 51) // 52),
+            )
             tk.Label(bar, image=self.brand_icon, bg=BG).pack(side="left", padx=(0, 14))
-            self.iconphoto(True, tk.PhotoImage(file=str(ROOT / "assets" / "vmrx-draft.png")))
+            self.iconphoto(True, self.app_icon)
         except tk.TclError:
             tk.Label(bar, text="◆", fg=CYAN, bg=BG, font=("Segoe UI", 30, "bold")).pack(side="left", padx=(0, 14))
         titles = tk.Frame(bar, bg=BG)
@@ -81,7 +84,7 @@ class App(tk.Tk):
         tk.Label(titles, text="VMRX", fg=TEXT, bg=BG, font=("Segoe UI", 23, "bold")).pack(anchor="w")
         tk.Label(titles, text="VARGAMESH RX  /  RANDOMX MAINNET", fg=CYAN, bg=BG,
                  font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        tk.Label(bar, text="RC PREVIEW  •  LOCAL RPC", bg=SURFACE, fg=AMBER,
+        tk.Label(bar, text="v0.1.0  •  LOCAL RPC", bg=SURFACE, fg=CYAN,
                  font=("Segoe UI", 9, "bold"), padx=13, pady=8).pack(side="right")
         self.tabs = ttk.Notebook(self)
         self.tabs.pack(fill="both", expand=True, padx=24)
@@ -100,7 +103,8 @@ class App(tk.Tk):
         bottom = tk.Frame(self, bg=BG)
         bottom.pack(fill="x", padx=30, pady=12)
         tk.Label(bottom, textvariable=self.status, bg=BG, fg=MUTED,
-                 font=("Segoe UI", 9)).pack(side="left")
+                 wraplength=700, anchor="w", justify="left",
+                 font=("Segoe UI", 9)).pack(side="left", fill="x", expand=True)
         ttk.Button(bottom, text="Refresh now", command=self.refresh).pack(side="right")
 
     def _heading(self, parent, title, text):
@@ -118,7 +122,7 @@ class App(tk.Tk):
         return frame
 
     def _dashboard(self, frame):
-        self._heading(frame, "Network overview", "Live data from the VMRX daemon on your machine. No remote services or account login.")
+        self._heading(frame, "Network overview", "Local VMRX daemon status · Offline? Open Node Control to choose and start the real VMRX Core binary.")
         cards = tk.Frame(frame, bg=BG)
         cards.pack(fill="both", expand=False, padx=14, pady=22)
         for i, (label, value, color) in enumerate([
@@ -166,7 +170,7 @@ class App(tk.Tk):
                  bg=BG, fg=AMBER, justify="left", wraplength=760).pack(anchor="w", padx=18, pady=24)
 
     def _node(self, frame):
-        self._heading(frame, "Local node", "Connect to an existing local daemon, or launch a separately supplied VMRX Core binary. Core binaries are NOT bundled.")
+        self._heading(frame, "Local node", "Connect to a locally running VMRX daemon, or select your VMRX Core executable and start it. Windows Core is not included.")
         form = tk.Frame(frame, bg=BG)
         form.pack(fill="x", padx=18, pady=(14, 6))
         self._field(form, 0, "RPC port (localhost)", self.rpc_port)
@@ -180,20 +184,20 @@ class App(tk.Tk):
         actions.pack(anchor="w", padx=18, pady=14)
         ttk.Button(actions, text="▶ Start local node", command=self.start_node).pack(side="left", padx=(0, 12))
         ttk.Button(actions, text="■ Stop node I launched", command=self.stop_node).pack(side="left")
-        tk.Label(frame, text="No peer specified → isolated node (127.0.0.1:1). No inherited Monero peer discovery.\n"
-                 "RPC and P2P bind to localhost; public seed-node configuration requires separate audited setup.",
+        tk.Label(frame, text="Verified VMRX peer prefilled: 31.70.81.5:29780 (operator-run; availability not guaranteed).\n"
+                 "Leave peer empty for an isolated node. RPC/P2P bind to localhost; no Monero discovery.",
                  bg=BG, fg=AMBER, justify="left", wraplength=800).pack(anchor="w", padx=18, pady=(10, 0))
 
     def _about(self, frame):
         self._heading(frame, "About VMRX", "VargaMesh RX is a separate Monero-derived RandomX blockchain, NOT the SHA-256d VMESH mainnet.")
         body = (
-            "RC2 mainnet test values (operator logs, 2026-10-24)\n\n"
+            "VMRX mainnet — observed parameters (operator logs, 2026-10-24)\n\n"
             "Consensus: RandomX / HF16  •  target: 120 seconds\n"
             "Mainnet P2P: 29780  •  mainnet RPC: 29781 (localhost only)\n"
             "Genesis: 405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4\n"
             "Founder allocation: 200,000 VMRX in block 1 (PREMINE; mandatory disclosure)\n"
             "Tail emission: 0.6 VMRX per target block; NO strict supply cap\n\n"
-            "This RC is NOT independently audited and is not an approved wallet or exchange integration.\n"
+            "This software is NOT independently audited and is not a wallet or exchange integration.\n"
             "Actual spend and recovery tests, public source/build checks, seed infrastructure, and licensing\n"
             "review are outstanding. Do not disclose wallet seeds, passwords or key files.\n\n"
             "The GUI only controls local daemon RPC; it does not manage private keys or payments."
@@ -259,7 +263,15 @@ class App(tk.Tk):
                         self.fields["hash"].set(str(info.get("top_block_hash", "—")))
                         self.status.set("Connected to local VMRX daemon · 127.0.0.1")
                     else:
-                        self.status.set("Node unavailable: " + str(data)[:100])
+                        self.fields["height"].set("Offline")
+                        self.fields["peers"].set("—")
+                        self.fields["difficulty"].set("—")
+                        self.fields["sync"].set("No local daemon")
+                        self.fields["mining"].set("—")
+                        self.fields["speed"].set("—")
+                        self.fields["hash"].set("—")
+                        self.status.set("No VMRX node listening on 127.0.0.1:" + self.rpc_port.get() +
+                                        " · Open Node Control, select your VMRX Core binary, and start the node.")
                 else:
                     if ok:
                         self.status.set(str(data))
