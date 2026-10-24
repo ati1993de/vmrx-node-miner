@@ -69,7 +69,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ati1993de/vmrx-core
-          ref: 746fbe7878a037d36d0d20404b8971798448fa9b
+          ref: fea970dce4d6237e0357aa0c5830d5e348cdda86
           path: vmrx-core
           submodules: recursive
           persist-credentials: false
@@ -131,11 +131,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-bundle/core
-          binary="$(find vmrx-core/build -type f -name monerod.exe -print -quit)"
+          binary="$(find vmrx-core/build -type f -name vmrxd.exe -print -quit)"
           test -n "$binary" && test -s "$binary" || { echo 'VMRX Windows daemon build missing'; exit 1; }
           file "$binary" | grep -q 'PE32+'
-          cp "$binary" release-bundle/core/monerod.exe
-          pending=(release-bundle/core/monerod.exe)
+          cp "$binary" release-bundle/core/vmrxd.exe
+          pending=(release-bundle/core/vmrxd.exe)
           while [ "${#pending[@]}" -gt 0 ]; do
             current="${pending[0]}"
             pending=("${pending[@]:1}")
@@ -149,15 +149,15 @@ jobs:
           done
           cp vmrx-core/LICENSE release-bundle/core/CORE-LICENSE.txt
           cp vmrx-core/docs/RELEASE_STATUS.md release-bundle/core/CORE-RELEASE-STATUS.md
-          printf '%s\n' 'VMRX Core source: ati1993de/vmrx-core' 'Commit: 746fbe7878a037d36d0d20404b8971798448fa9b' > release-bundle/core/CORE-SOURCE.txt
-          test -s release-bundle/core/monerod.exe
+          printf '%s\n' 'VMRX Core source: ati1993de/vmrx-core' 'Commit: fea970dce4d6237e0357aa0c5830d5e348cdda86' > release-bundle/core/CORE-SOURCE.txt
+          test -s release-bundle/core/vmrxd.exe
 
       - name: Windows mainnet genesis smoke test (must pass to release)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $daemon = Join-Path $PWD 'release-bundle/core/monerod.exe'
+          $daemon = Join-Path $PWD 'release-bundle/core/vmrxd.exe'
           $dataDir = Join-Path $env:RUNNER_TEMP 'vmrx-integrated-windows-smoke'
           $logFile = Join-Path $dataDir 'smoke.log'
           $stdoutFile = Join-Path $dataDir 'stdout.txt'
@@ -232,7 +232,7 @@ jobs:
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item 'dist/VMRX-Node-Miner.exe' 'release-bundle/VMRX-Node-Miner.exe'
           Copy-Item 'README-WINDOWS-v0.1.1.txt' 'release-bundle/README-WINDOWS.txt'
-          if (!(Test-Path 'release-bundle/core/monerod.exe')) { throw 'No Windows Core: refusing to release GUI-only archive' }
+          if (!(Test-Path 'release-bundle/core/vmrxd.exe')) { throw 'No Windows Core: refusing to release GUI-only archive' }
           Compress-Archive -Path 'release-bundle/*' -DestinationPath 'release/VMRX-Node-Miner-windows-x64.zip' -CompressionLevel Optimal -Force
           if ((Get-Item 'release/VMRX-Node-Miner-windows-x64.zip').Length -lt 20000000) {
             throw 'Windows package unexpectedly small; refusing incomplete release'
