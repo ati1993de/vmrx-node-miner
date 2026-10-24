@@ -184,8 +184,8 @@ class App(tk.Tk):
         actions.pack(anchor="w", padx=18, pady=14)
         ttk.Button(actions, text="▶ Start local node", command=self.start_node).pack(side="left", padx=(0, 12))
         ttk.Button(actions, text="■ Stop node I launched", command=self.stop_node).pack(side="left")
-        tk.Label(frame, text="Verified VMRX peer prefilled: 31.70.81.5:29780 (operator-run; availability not guaranteed).\n"
-                 "Leave peer empty for an isolated node. RPC/P2P bind to localhost; no Monero discovery.",
+        tk.Label(frame, text="VMRX mainnet preferred peers: 31.70.81.5:29780 and 217.154.93.20:29780 (availability not guaranteed).\n"
+                 "A filled peer uses non-exclusive priority connections and VMRX-only discovery.\nLeave empty for isolation. Local RPC/P2P bind to localhost; no Monero seeds.",
                  bg=BG, fg=AMBER, justify="left", wraplength=800).pack(anchor="w", padx=18, pady=(10, 0))
 
     def _about(self, frame):
