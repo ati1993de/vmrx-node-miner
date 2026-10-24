@@ -11,6 +11,9 @@ import re
 import subprocess
 import sys
 
+KNOWN_VMRX_MAINNET_PEERS = ("31.70.81.5:29780", "217.154.93.20:29780")
+# Windrose has previously passed a genuine VMRX handshake. The second address
+# was supplied by the operator; it must pass VMRX P2P consensus validation.
 PEER_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9.-]*):(\d{1,5})$")
 
 
@@ -67,12 +70,23 @@ def build_args(executable: str, data_dir: str, rpc_port: int, p2p_port: int, pee
         raise ValueError("Invalid port")
     if int(rpc_port) == int(p2p_port):
         raise ValueError("P2P and RPC ports must differ")
-    return [str(binary), "--non-interactive", "--data-dir", str(data),
+    args = [str(binary), "--non-interactive", "--data-dir", str(data),
             "--p2p-bind-ip", "127.0.0.1", "--p2p-bind-port", str(int(p2p_port)),
             "--rpc-bind-ip", "127.0.0.1", "--rpc-bind-port", str(int(rpc_port)),
-            "--no-zmq", "--no-igd", "--disable-dns-checkpoints", "--check-updates", "disabled",
-            "--add-exclusive-node", checked_peer(peer),
-            "--log-file", str(data / "vmrx-node.log")]
+            "--no-zmq", "--no-igd", "--disable-dns-checkpoints", "--check-updates", "disabled"]
+    selected = checked_peer(peer)
+    if selected == "127.0.0.1:1":
+        # Explicit blank peer means truly isolated, even with built-in seeds.
+        args += ["--add-exclusive-node", selected]
+    else:
+        # Priority peers are *not* exclusive; the node can discover compatible
+        # VMRX peers and recover if one bootstrap is unavailable. Connections
+        # still undergo the normal network ID, block and PoW validation.
+        candidates = dict.fromkeys((selected, *KNOWN_VMRX_MAINNET_PEERS))
+        for known_peer in candidates:
+            args += ["--add-priority-node", checked_peer(known_peer)]
+    args += ["--log-file", str(data / "vmrx-node.log")]
+    return args
 
 
 def launch_node(executable: str, data_dir: str, rpc_port: int, p2p_port: int, peer: str) -> subprocess.Popen:
