@@ -2,17 +2,17 @@
 
 <p align="center"><img src="assets/vmrx-logo.png" alt="Official VMRX logo" width="144"></p>
 
-**VargaMesh RX · Windows / Linux · RandomX CPU mining and local node controller**
+**VargaMesh RX · Windows integrated Node & Miner (v0.1.1 candidate) / Linux GUI**
 
 [Latest release](https://github.com/ati1993de/vmrx-node-miner/releases/latest) · [VMRX Core](https://github.com/ati1993de/vmrx-core) · [Security](SECURITY.md)
 
 VMRX Node & Miner is a desktop application for monitoring and controlling a **local VMRX daemon**. It shows blockchain height, peer count, difficulty, synchronization, chain tip and mining hashrate; it can start/stop CPU mining on a connected local daemon. All RPC traffic goes to `127.0.0.1`.
 
-> **Important:** This application is a node/miner **controller**, not a complete wallet. Neither release includes a Windows Core daemon. Windows mining requires a separately built, compatible Windows VMRX Core. Linux users must install the Linux VMRX Core separately. The GUI does not hold funds or accept mnemonic seeds.
+> **Release status:** Public v0.1.0 is GUI-only and cannot run a native Windows node. The new **v0.1.1 candidate** builds the real Windows VMRX daemon from pinned Core source, tests its VMRX genesis over localhost RPC, and bundles it with the GUI. **It must pass CI before a release can be published.** Linux remains GUI-only and requires a separate Core download. Neither GUI handles wallet keys or seeds.
 
 ## Features
 
-| Feature | v0.1.0 |
+| Feature | v0.1.1 Windows candidate |
 | --- | --- |
 | Local blockchain height, difficulty, peers and chain tip | Yes |
 | Synchronization and RandomX hashrate | Yes |
@@ -20,7 +20,7 @@ VMRX Node & Miner is a desktop application for monitoring and controlling a **lo
 | Choose CPU threads and verified mining address | Yes |
 | Select and launch a local VMRX node executable | Yes — daemon supplied separately |
 | Windows x64, Linux x86_64 GUI binaries | Yes |
-| Bundled Windows Core / Windows full node | **No** |
+| Bundled Windows Core / Windows full node | **Build-gated:** must compile and pass genesis smoke test |
 | Sending, receiving, restoring a wallet or seed handling | **Not implemented** |
 | Installer, signed binaries or external security audit | **Not provided** |
 
@@ -30,7 +30,7 @@ Download the relevant archive and `SHA256SUMS` from [Releases](https://github.co
 
 ### Windows 10 / 11 x64
 
-Extract `VMRX-Node-Miner-windows-x64.zip` and launch `VMRX-Node-Miner.exe`. The GUI will show **Offline** until a compatible **Windows VMRX Core daemon** is installed separately and listening on local RPC port `29781`. There is presently **no native Windows Core binary** in the Core releases, so the GUI does not yet provide a standalone Windows node/mining installation.
+**Do not use v0.1.0 for standalone Windows mining:** its ZIP has no node. For **v0.1.1 after a successful build/release**, extract the **entire ZIP**, preserving `core/monerod.exe` and DLLs next to `VMRX-Node-Miner.exe`. Open **Node Control**, where the packaged node is auto-selected, and click **Start local node**. Wait until fully synchronized before using CPU Mining with an independently verified VMRX receiving address. See `README-WINDOWS.txt` within the ZIP.
 
 ### Linux x86_64 desktop
 
@@ -40,7 +40,7 @@ A VMRX-only peer `31.70.81.5:29780` is prefilled (observed by the operator; avai
 
 ### Dashboard says Offline / WinError 10061
 
-This means no daemon currently accepts connections at `127.0.0.1:29781`. Open **Node Control** to select/start VMRX Core. It is not a browser/server login failure. The Windows GUI alone cannot start mining without a separate compatible native Windows node.
+This means no daemon currently accepts connections at `127.0.0.1:29781`. In the v0.1.1 integrated Windows archive, verify `core/monerod.exe` exists and is preselected in **Node Control**; click **Start local node**. Examine `<data directory>/vmrx-node.log` if the daemon exits. The old **v0.1.0 ZIP has no node**.
 
 ## Running from source
 
@@ -67,7 +67,7 @@ python3 -m pip install -r requirements-build.txt
 bash scripts/build-linux.sh
 ```
 
-On Windows run `scripts/build-windows.ps1`. Tagging `v0.1.0` triggers Windows/Linux GitHub Actions builds and then publishes the release only if **both GUI builds and tests succeed**. Build success is not evidence of working Windows Core, independent network consensus, recoverable wallets, or reproducible/security-audited binaries.
+On Windows run `scripts/build-windows.ps1` for a **GUI-only developer build**. The integrated GitHub Actions workflow checks out pinned [VMRX Core](https://github.com/ati1993de/vmrx-core) source, compiles the real Windows x64 daemon using MSYS2/MinGW64, collects DLLs, starts a local node and verifies the fork-specific genesis before publishing a tagged Windows integrated archive. No release is published if this gate fails. This is not a consensus/security audit or proof of recoverable wallet balances and spends.
 
 ## Branding
 
