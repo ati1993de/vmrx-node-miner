@@ -1,0 +1,3 @@
+# GUI runtime: Python stdlib (tkinter).
+# Installer builder: use a locked and reviewed build environment before a signed release.
+pyinstaller==6.16.0

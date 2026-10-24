@@ -1,0 +1,82 @@
+name: Build and release VMRX GUI preview
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  gui:
+    name: GUI / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Linux Tk GUI dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk tk-dev libx11-6
+      - name: Install build requirements
+        run: python -m pip install -r requirements-build.txt
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Linux GUI binary
+        if: runner.os == 'Linux'
+        run: bash scripts/build-linux.sh
+      - name: Package Linux preview
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p release
+          tar -czf release/VMRX-Node-Miner-linux-x86_64.tar.gz -C dist VMRX-Node-Miner
+      - name: Windows GUI binary
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/build-windows.ps1
+      - name: Package Windows preview
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release | Out-Null
+          Compress-Archive -Path dist/VMRX-Node-Miner.exe -DestinationPath release/VMRX-Node-Miner-windows-x64.zip -Force
+      - name: Upload built preview packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-gui-${{ runner.os }}
+          path: release/*
+          if-no-files-found: error
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: gui
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: vmrx-gui-*
+          path: release
+          merge-multiple: true
+      - name: Write checksums
+        shell: bash
+        run: |
+          cd release
+          sha256sum VMRX-Node-Miner-* > SHA256SUMS
+      - name: Publish prerelease binaries
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" release/* \
+            --prerelease \
+            --title "VMRX Node & Miner ${GITHUB_REF_NAME} (preview)" \
+            --notes-file RELEASE_NOTES_v0.1.0-rc.1.md
