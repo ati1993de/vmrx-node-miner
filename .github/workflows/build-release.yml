@@ -90,11 +90,20 @@ jobs:
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-zeromq
             mingw-w64-x86_64-libsodium
-            mingw-w64-x86_64-hidapi
             mingw-w64-x86_64-unbound
-            mingw-w64-x86_64-libusb
             mingw-w64-x86_64-protobuf
             mingw-w64-x86_64-pkgconf
+
+      - name: Install pinned MSYS2 HIDAPI/libusb packages from official mirror
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir -p msys2-deps
+          curl --fail --location --retry 3 --output msys2-deps/hidapi.pkg.tar.zst https://mirror.msys2.org/mingw/mingw64/mingw-w64-x86_64-hidapi-0.15.0-2-any.pkg.tar.zst
+          curl --fail --location --retry 3 --output msys2-deps/libusb.pkg.tar.zst https://mirror.msys2.org/mingw/mingw64/mingw-w64-x86_64-libusb-1.0.30-1-any.pkg.tar.zst
+          printf '%s  %s\n' '89fb61549a437d65076a092a367fcb264fc7045ee9ebef48cd81f5a76a5588f8' 'msys2-deps/hidapi.pkg.tar.zst' '124edc26b009678a4c5e759481a364abf63ed7f2f49a53092e8bd0a47c0c0740' 'msys2-deps/libusb.pkg.tar.zst' | sha256sum -c -
+          pacman --noconfirm -U msys2-deps/hidapi.pkg.tar.zst msys2-deps/libusb.pkg.tar.zst
 
       - name: Verify VMRX fork mainnet constants
         if: runner.os == 'Windows'
