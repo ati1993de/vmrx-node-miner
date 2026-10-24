@@ -1,0 +1,96 @@
+name: Publish VMRX Node & Miner v0.1.1 (GUI + Windows Core)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v011.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: vmrx-gui-v011-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Release verified Windows GUI+Core and Linux desktop GUI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_REPO: ati1993de/vmrx-node-miner
+      GH_TOKEN: ${{ github.token }}
+      VMRX_SOURCE_SHA: f79a05ff0844d52c3aa15c6c73189e9dbdc15768
+      GUI_RUN_ID: "40134729330"
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require same GUI/Core source and release notes as verified workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${VMRX_SOURCE_SHA}^{commit}"
+          git diff --exit-code "${VMRX_SOURCE_SHA}" HEAD -- app.py node_process.py rpc_client.py scripts assets tests requirements-build.txt .github/workflows/build-release.yml
+          test -s RELEASE_NOTES_v0.1.1.md
+
+      - name: Require all platform jobs to have passed on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(gh api "repos/${GH_REPO}/actions/runs/${GUI_RUN_ID}" --jq '.head_sha')"
+          conclusion="$(gh api "repos/${GH_REPO}/actions/runs/${GUI_RUN_ID}" --jq '.conclusion')"
+          event="$(gh api "repos/${GH_REPO}/actions/runs/${GUI_RUN_ID}" --jq '.event')"
+          test "${actual_sha}" = "${VMRX_SOURCE_SHA}"
+          test "${conclusion}" = success
+          test "${event}" = push
+          echo "PASS: Integrated Windows + Linux builds succeeded on main"
+
+      - name: Download verified Windows (GUI + full Core) and Linux desktop artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p stage/windows stage/linux release
+          gh run download "${GUI_RUN_ID}" --repo "${GH_REPO}" --name vmrx-gui-Windows --dir stage/windows
+          gh run download "${GUI_RUN_ID}" --repo "${GH_REPO}" --name vmrx-gui-Linux --dir stage/linux
+          test -s stage/windows/VMRX-Node-Miner-windows-x64.zip
+          test -s stage/linux/VMRX-Node-Miner-linux-x86_64.tar.gz
+          unzip -t stage/windows/VMRX-Node-Miner-windows-x64.zip
+          unzip -Z1 stage/windows/VMRX-Node-Miner-windows-x64.zip | grep -Eq '^VMRX-Node-Miner\.exe$'
+          unzip -Z1 stage/windows/VMRX-Node-Miner-windows-x64.zip | grep -Eq '^core/monerod\.exe$'
+          unzip -Z1 stage/windows/VMRX-Node-Miner-windows-x64.zip | grep -Eq '^README-WINDOWS\.txt$'
+          tar -tzf stage/linux/VMRX-Node-Miner-linux-x86_64.tar.gz >/dev/null
+          cp stage/windows/VMRX-Node-Miner-windows-x64.zip release/VMRX-Node-Miner-windows-x64.zip
+          cp stage/linux/VMRX-Node-Miner-linux-x86_64.tar.gz release/VMRX-Node-Miner-linux-x86_64.tar.gz
+          echo "PASS: Native VMRX Core executable is physically included in Windows GUI ZIP"
+
+      - name: Refuse existing tag and write checksum manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh api "repos/${GH_REPO}/git/ref/tags/v0.1.1" >/dev/null 2>&1; then
+            echo "ERROR: v0.1.1 tag already exists; will not overwrite"
+            exit 1
+          fi
+          (cd release && sha256sum VMRX-Node-Miner-* > SHA256SUMS && sha256sum -c SHA256SUMS)
+          ls -lh release
+
+      - name: Publish official v0.1.1 release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create v0.1.1 \
+            release/VMRX-Node-Miner-windows-x64.zip \
+            release/VMRX-Node-Miner-linux-x86_64.tar.gz \
+            release/SHA256SUMS \
+            --repo "${GH_REPO}" \
+            --target "${GITHUB_SHA}" \
+            --title "VMRX Node & Miner v0.1.1 — Windows GUI + VMRX Core, Linux GUI" \
+            --notes-file RELEASE_NOTES_v0.1.1.md \
+            --latest
+          gh release view v0.1.1 --repo "${GH_REPO}"
