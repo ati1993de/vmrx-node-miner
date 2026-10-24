@@ -36,7 +36,7 @@ Download the relevant archive and `SHA256SUMS` from [Releases](https://github.co
 
 Extract `VMRX-Node-Miner-linux-x86_64.tar.gz` and run `./VMRX-Node-Miner` **in a graphical desktop session**. Separately download and verify the Linux Core from [VMRX Core releases](https://github.com/ati1993de/vmrx-core/releases/latest). In **Node Control**, select the released VMRX daemon (`monerod` in the present fork), choose a fresh data directory and launch it. Wait for sync before enabling CPU mining.
 
-A VMRX-only peer `31.70.81.5:29780` is prefilled (observed by the operator; availability not guaranteed). Never connect to upstream Monero peers or reuse Monero/VMESH data directories. P2P and RPC bind to loopback in this controller; running a public seed node is a separate administrative task.
+A VMRX-only peer `31.70.81.5:29780 and 217.154.93.20:29780` is prefilled (observed by the operator; availability not guaranteed). Never connect to upstream Monero peers or reuse Monero/VMESH data directories. P2P and RPC bind to loopback in this controller; running a public seed node is a separate administrative task.
 
 ### Dashboard says Offline / WinError 10061
 
