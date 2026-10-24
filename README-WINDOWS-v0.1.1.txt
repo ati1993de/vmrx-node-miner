@@ -13,7 +13,7 @@ an actual Windows node startup and genesis RPC test before publication.
 7. After the node is fully synchronized, enter a separately verified VMRX
    receiving address in CPU Mining, choose CPU threads, then confirm mining.
 
-A known VMRX-only bootstrap peer is prefilled: 31.70.81.5:29780.
+A known VMRX-only bootstrap peer is prefilled: 31.70.81.5:29780, 217.154.93.20:29780 (operator candidates; real P2P handshake required).
 It is operator-operated and may be temporarily unavailable.
 Neither VMRX nor the GUI is Monero-compatible for chain/network data.
 Do not use your Monero wallet or a Monero blockchain data directory.
