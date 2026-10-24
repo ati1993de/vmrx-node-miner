@@ -13,7 +13,7 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from node_process import launch_node
+from node_process import find_bundled_daemon, launch_node
 from rpc_client import RpcError, VMRXRpc, valid_mining_address
 
 ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
@@ -34,7 +34,7 @@ class App(tk.Tk):
         self.rpc_port = tk.StringVar(value="29781")
         self.p2p_port = tk.StringVar(value="29780")
         self.peer = tk.StringVar(value="31.70.81.5:29780")
-        self.node_exe = tk.StringVar(value="")
+        self.node_exe = tk.StringVar(value=find_bundled_daemon())
         self.node_dir = tk.StringVar(value=str(Path.home() / ".vmrx-node"))
         self.address = tk.StringVar(value="")
         self.threads = tk.IntVar(value=1)
@@ -170,7 +170,7 @@ class App(tk.Tk):
                  bg=BG, fg=AMBER, justify="left", wraplength=760).pack(anchor="w", padx=18, pady=24)
 
     def _node(self, frame):
-        self._heading(frame, "Local node", "Connect to a locally running VMRX daemon, or select your VMRX Core executable and start it. Windows Core is not included.")
+        self._heading(frame, "Local node", "Connect to a local VMRX daemon. A packaged Core is detected automatically, if present; otherwise choose an executable.")
         form = tk.Frame(frame, bg=BG)
         form.pack(fill="x", padx=18, pady=(14, 6))
         self._field(form, 0, "RPC port (localhost)", self.rpc_port)
