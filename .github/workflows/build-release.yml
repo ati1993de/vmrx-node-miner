@@ -69,7 +69,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ati1993de/vmrx-core
-          ref: d5df4f8aac545f14fe2135ce33149f504abd0ae4
+          ref: 9c3690f3381dab1b14ba3224a9e55ecc59d877de
           path: vmrx-core
           submodules: recursive
           persist-credentials: false
@@ -149,7 +149,7 @@ jobs:
           done
           cp vmrx-core/LICENSE release-bundle/core/CORE-LICENSE.txt
           cp vmrx-core/docs/RELEASE_STATUS.md release-bundle/core/CORE-RELEASE-STATUS.md
-          printf '%s\n' 'VMRX Core source: ati1993de/vmrx-core' 'Commit: d5df4f8aac545f14fe2135ce33149f504abd0ae4' > release-bundle/core/CORE-SOURCE.txt
+          printf '%s\n' 'VMRX Core source: ati1993de/vmrx-core' 'Commit: 9c3690f3381dab1b14ba3224a9e55ecc59d877de' > release-bundle/core/CORE-SOURCE.txt
           test -s release-bundle/core/monerod.exe
 
       - name: Windows mainnet genesis smoke test (must pass to release)
@@ -159,6 +159,9 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $daemon = Join-Path $PWD 'release-bundle/core/monerod.exe'
           $dataDir = Join-Path $env:RUNNER_TEMP 'vmrx-integrated-windows-smoke'
+          $logFile = Join-Path $dataDir 'smoke.log'
+          $stdoutFile = Join-Path $dataDir 'stdout.txt'
+          $stderrFile = Join-Path $dataDir 'stderr.txt'
           New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
           $params = @(
             '--non-interactive', '--offline',
@@ -167,30 +170,59 @@ jobs:
             '--rpc-bind-ip', '127.0.0.1', '--rpc-bind-port', '29781',
             '--no-zmq', '--no-igd', '--disable-dns-checkpoints',
             '--check-updates', 'disabled',
-            '--log-file', (Join-Path $dataDir 'smoke.log')
+            '--log-file', $logFile
           )
-          $process = Start-Process -FilePath $daemon -ArgumentList $params -WorkingDirectory (Split-Path $daemon) -PassThru -WindowStyle Hidden
+          $process = $null
+          $passed = $false
+          $lastRpcError = ''
           try {
-            $ready = $false
-            for ($i = 0; $i -lt 60; $i++) {
+            Write-Host "VMRX: starting compiled Windows executable from pinned fork source"
+            Write-Host "Daemon path: $daemon"
+            Write-Host "Working dir: $(Split-Path $daemon)"
+            $process = Start-Process -FilePath $daemon -ArgumentList $params -WorkingDirectory (Split-Path $daemon) -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+            $info = $null
+            for ($i = 0; $i -lt 90; $i++) {
               Start-Sleep -Seconds 2
               if ($process.HasExited) { throw "VMRX daemon exited before RPC: $($process.ExitCode)" }
               try {
                 $info = Invoke-RestMethod -Uri 'http://127.0.0.1:29781/get_info' -TimeoutSec 3
-                if ($info.height -ge 1) { $ready = $true; break }
-              } catch {}
+                if ($info.height -ge 1) { break }
+              } catch {
+                $lastRpcError = $_.Exception.Message
+              }
             }
-            if (-not $ready) { throw 'VMRX daemon did not start local RPC' }
+            if ($null -eq $info -or $info.height -lt 1) {
+              throw "VMRX daemon did not start local RPC; last error: $lastRpcError"
+            }
+            Write-Host "RPC get_info height: $($info.height) — network: $($info.nettype)"
             $body = @{jsonrpc='2.0'; id='0'; method='get_block_header_by_height'; params=@{height=0}} | ConvertTo-Json -Depth 5
-            $result = Invoke-RestMethod -Uri 'http://127.0.0.1:29781/json_rpc' -Method POST -ContentType 'application/json' -Body $body
+            $result = Invoke-RestMethod -Uri 'http://127.0.0.1:29781/json_rpc' -Method POST -ContentType 'application/json' -Body $body -TimeoutSec 10
+            if ($result.error) { throw "RPC returned error: $($result.error | ConvertTo-Json -Depth 4 -Compress)" }
             $expected = '405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4'
             $actual = [string]$result.result.block_header.hash
+            Write-Host "Expected genesis: $expected"
+            Write-Host "Observed genesis: $actual"
             if ($actual -ne $expected) { throw "WRONG GENESIS: $actual (expected $expected)" }
+            $passed = $true
             Write-Host "PASS: Native VMRX Windows Core running with correct genesis $actual"
           } finally {
-            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
-            if (-not $ready) { Get-Content (Join-Path $dataDir 'smoke.log') -Tail 100 -ErrorAction SilentlyContinue }
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+            if (-not $passed) {
+              Write-Host '=== Failed Windows VMRX smoke test: daemon diagnostics ==='
+              if (Test-Path $logFile) { Get-Content $logFile -Tail 100 -ErrorAction SilentlyContinue }
+              if (Test-Path $stderrFile) { Get-Content $stderrFile -Tail 60 -ErrorAction SilentlyContinue }
+              if (Test-Path $stdoutFile) { Get-Content $stdoutFile -Tail 60 -ErrorAction SilentlyContinue }
+            }
           }
+
+      - name: Upload diagnostics when Windows daemon smoke test fails
+        if: failure() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-windows-smoke-diagnostics
+          path: ${{ runner.temp }}/vmrx-integrated-windows-smoke/*.txt
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Package verified Windows GUI + full core
         if: runner.os == 'Windows'
