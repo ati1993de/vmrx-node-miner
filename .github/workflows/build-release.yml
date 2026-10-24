@@ -224,6 +224,80 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      # Unlike the genesis-only check, this exercises the actual mainnet
+      # protocol, coinbase reward validation and PoW for the first mined block.
+      # This must stay a failing gate until genuine chain compatibility works.
+      - name: Sync and verify historical mainnet block 1 over live VMRX P2P
+        if: runner.os == 'Windows'
+        shell: pwsh
+        timeout-minutes: 6
+        run: |
+          $ErrorActionPreference = "Stop"
+          $daemon = Join-Path $PWD "release-bundle/core/vmrxd.exe"
+          $dataDir = Join-Path $env:RUNNER_TEMP "vmrx-windows-block1-sync"
+          $logFile = Join-Path $dataDir "vmrx-sync.log"
+          New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+          New-Item -ItemType Directory -Force -Path "buildlogs" | Out-Null
+          $arguments = @(
+            "--non-interactive",
+            "--data-dir", $dataDir,
+            "--p2p-bind-ip", "127.0.0.1", "--p2p-bind-port", "29880",
+            "--rpc-bind-ip", "127.0.0.1", "--rpc-bind-port", "29881",
+            "--no-zmq", "--no-igd", "--disable-dns-checkpoints",
+            "--check-updates", "disabled",
+            "--add-exclusive-node", "31.70.81.5:29780",
+            "--log-level", "2", "--log-file", $logFile
+          )
+          $process = $null
+          $passed = $false
+          $lastError = ""
+          try {
+            $process = Start-Process -FilePath $daemon -ArgumentList $arguments -WorkingDirectory (Split-Path $daemon) -PassThru -WindowStyle Hidden
+            for ($i = 0; $i -lt 100; $i++) {
+              Start-Sleep -Seconds 2
+              if ($process.HasExited) { throw "VMRX daemon exited with $($process.ExitCode) before syncing" }
+              try {
+                $info = Invoke-RestMethod -Uri "http://127.0.0.1:29881/get_info" -TimeoutSec 3
+                if ($info.height -ge 2) {
+                  $body = @{jsonrpc="2.0";id="1";method="get_block_header_by_height";params=@{height=1}} | ConvertTo-Json -Depth 4
+                  $res = Invoke-RestMethod -Uri "http://127.0.0.1:29881/json_rpc" -Method POST -ContentType "application/json" -Body $body -TimeoutSec 5
+                  $h = $res.result.block_header
+                  if ([string]$h.hash -ne "79030889ec6dd46cf2722defe9523bd38d2379168a27935fa3f1cdfe9397e293") { throw "Wrong network: mainnet block 1 hash $($h.hash)" }
+                  if ([string]$h.miner_tx_hash -ne "d7f9691cb7c478fd87957e2210df12205399968e394e1d2a3e58ae56fb7b4645") { throw "Wrong block-1 miner transaction hash $($h.miner_tx_hash)" }
+                  if ([decimal]$h.reward -ne [decimal]200035184304979968) { throw "Wrong block-1 reward $($h.reward)" }
+                  Write-Host "PASS: Windows VMRX accepted real mainnet block 1; height=$($info.height), peers=$($info.incoming_connections_count + $info.outgoing_connections_count)"
+                  $passed = $true
+                  break
+                }
+              } catch {
+                $lastError = $_.Exception.Message
+                # A genuine mismatching block is fatal, not an RPC readiness issue.
+                if ($lastError -match "Wrong network|Wrong block-1|Wrong block-1 reward") { throw }
+              }
+            }
+            if (-not $passed) {
+              throw "VMRX Windows sync failed to accept block 1. Last RPC error: $lastError"
+            }
+          } finally {
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+            if (Test-Path $logFile) {
+              Copy-Item $logFile "buildlogs/windows-height1-sync.log" -Force
+              if (-not $passed) {
+                Write-Host "=== Windows chain-acceptance diagnostics (last 180 lines) ==="
+                Get-Content $logFile -Tail 180 -ErrorAction SilentlyContinue
+              }
+            }
+          }
+
+      - name: Archive Windows height-1 synchronization diagnostics
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-windows-block1-sync-diagnostics
+          path: buildlogs/windows-height1-sync.log
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Package verified Windows GUI + full core
         if: runner.os == 'Windows'
         shell: pwsh
