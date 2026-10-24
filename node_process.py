@@ -78,8 +78,7 @@ def build_args(executable: str, data_dir: str, rpc_port: int, p2p_port: int, pee
 def launch_node(executable: str, data_dir: str, rpc_port: int, p2p_port: int, peer: str) -> subprocess.Popen:
     args = build_args(executable, data_dir, rpc_port, p2p_port, peer)
     Path(data_dir).expanduser().mkdir(parents=True, exist_ok=True)
-    if not checked_peer(peer) == "127.0.0.1:1":
-        pass  # one explicit VMRX-only peer; not a browser or URL
     return subprocess.Popen(args, stdin=subprocess.DEVNULL,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                            shell=False, cwd=str(Path(data_dir).expanduser()))
+                            shell=False, cwd=str(Path(data_dir).expanduser()),
+                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))

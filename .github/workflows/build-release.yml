@@ -1,63 +1,250 @@
-name: VMRX Node & Miner — Windows/Linux release
+name: VMRX Node & Miner — integrated Windows Core and Linux GUI
+
 on:
   workflow_dispatch:
   push:
     branches: [main]
     tags: ['v*']
   pull_request:
+
 permissions:
   contents: read
+
 jobs:
   gui:
-    name: GUI / ${{ matrix.os }}
+    name: GUI + platform package / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-2022]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout GUI
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Validate approved branding
+
+      - name: Validate official branding and version
         shell: bash
         run: |
           test -s assets/vmrx-logo.png
           ! test -f assets/vmrx-draft.png
-          grep -q 'v0.1.0' app.py
+          grep -q 'v0.1.1' app.py
+
       - name: Linux Tk GUI dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y python3-tk tk-dev libx11-6
-      - name: Install build requirements
+
+      - name: Install GUI build requirements
         run: python -m pip install -r requirements-build.txt
-      - name: Unit tests
+
+      - name: GUI unit tests
         run: python -m unittest discover -s tests -v
-      - name: Linux GUI binary
+
+      - name: Linux desktop GUI binary
         if: runner.os == 'Linux'
         run: bash scripts/build-linux.sh
-      - name: Package Linux preview
+
+      - name: Package Linux GUI (requires separate Linux Core)
         if: runner.os == 'Linux'
         shell: bash
         run: |
           mkdir -p release
           tar -czf release/VMRX-Node-Miner-linux-x86_64.tar.gz -C dist VMRX-Node-Miner
-      - name: Windows GUI binary
+
+      - name: Windows desktop GUI binary
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/build-windows.ps1
-      - name: Package Windows preview
+
+      # Build VMRX from its OWN source, never a downloaded Monero executable.
+      # Ref is deliberately fixed so the GUI release has auditable core provenance.
+      - name: Checkout actual VMRX Core source and submodules
+        if: runner.os == 'Windows'
+        uses: actions/checkout@v4
+        with:
+          repository: ati1993de/vmrx-core
+          ref: 746fbe7878a037d36d0d20404b8971798448fa9b
+          path: vmrx-core
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Install Windows x64 Core toolchain (MSYS2 MinGW64)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            base-devel
+            file
+            git
+            make
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-zeromq
+            mingw-w64-x86_64-libsodium
+            mingw-w64-x86_64-unbound
+            mingw-w64-x86_64-protobuf
+            mingw-w64-x86_64-pkgconf
+
+      - name: Install pinned MSYS2 HIDAPI/libusb packages from official mirror
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir -p msys2-deps
+          curl --fail --location --retry 3 --output msys2-deps/hidapi.pkg.tar.zst https://mirror.msys2.org/mingw/mingw64/mingw-w64-x86_64-hidapi-0.15.0-2-any.pkg.tar.zst
+          curl --fail --location --retry 3 --output msys2-deps/libusb.pkg.tar.zst https://mirror.msys2.org/mingw/mingw64/mingw-w64-x86_64-libusb-1.0.30-1-any.pkg.tar.zst
+          printf '%s  %s\n' '89fb61549a437d65076a092a367fcb264fc7045ee9ebef48cd81f5a76a5588f8' 'msys2-deps/hidapi.pkg.tar.zst' '124edc26b009678a4c5e759481a364abf63ed7f2f49a53092e8bd0a47c0c0740' 'msys2-deps/libusb.pkg.tar.zst' | sha256sum -c -
+          pacman --noconfirm -U msys2-deps/hidapi.pkg.tar.zst msys2-deps/libusb.pkg.tar.zst
+
+      - name: Verify VMRX fork mainnet constants
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          grep -Eq 'CRYPTONOTE_NAME[[:space:]]+"vmrx"' vmrx-core/src/cryptonote_config.h
+          grep -Eq 'DIFFICULTY_TARGET_V2[[:space:]]+120' vmrx-core/src/cryptonote_config.h
+          grep -Eq 'CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW[[:space:]]+60' vmrx-core/src/cryptonote_config.h
+
+      - name: Compile native Windows VMRX daemon (not Monero)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        working-directory: vmrx-core
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: '2'
+        run: |
+          set -euo pipefail
+          make release-static-win64-daemon -j2
+
+      - name: Bundle Windows core executable and required MinGW DLLs
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          mkdir -p release-bundle/core
+          binary="$(find vmrx-core/build -type f -name monerod.exe -print -quit)"
+          test -n "$binary" && test -s "$binary" || { echo 'VMRX Windows daemon build missing'; exit 1; }
+          file "$binary" | grep -q 'PE32+'
+          cp "$binary" release-bundle/core/monerod.exe
+          pending=(release-bundle/core/monerod.exe)
+          while [ "${#pending[@]}" -gt 0 ]; do
+            current="${pending[0]}"
+            pending=("${pending[@]:1}")
+            while IFS= read -r dll; do
+              [ -n "$dll" ] || continue
+              if [ -f "/mingw64/bin/$dll" ] && [ ! -f "release-bundle/core/$dll" ]; then
+                cp "/mingw64/bin/$dll" "release-bundle/core/$dll"
+                pending+=("release-bundle/core/$dll")
+              fi
+            done < <(objdump -p "$current" 2>/dev/null | sed -n 's/^[[:space:]]*DLL Name:[[:space:]]*//p')
+          done
+          cp vmrx-core/LICENSE release-bundle/core/CORE-LICENSE.txt
+          cp vmrx-core/docs/RELEASE_STATUS.md release-bundle/core/CORE-RELEASE-STATUS.md
+          printf '%s\n' 'VMRX Core source: ati1993de/vmrx-core' 'Commit: 746fbe7878a037d36d0d20404b8971798448fa9b' > release-bundle/core/CORE-SOURCE.txt
+          test -s release-bundle/core/monerod.exe
+
+      - name: Windows mainnet genesis smoke test (must pass to release)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+          $daemon = Join-Path $PWD 'release-bundle/core/monerod.exe'
+          $dataDir = Join-Path $env:RUNNER_TEMP 'vmrx-integrated-windows-smoke'
+          $logFile = Join-Path $dataDir 'smoke.log'
+          $stdoutFile = Join-Path $dataDir 'stdout.txt'
+          $stderrFile = Join-Path $dataDir 'stderr.txt'
+          New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+          $params = @(
+            '--non-interactive', '--offline',
+            '--data-dir', $dataDir,
+            '--p2p-bind-ip', '127.0.0.1', '--p2p-bind-port', '29780',
+            '--rpc-bind-ip', '127.0.0.1', '--rpc-bind-port', '29781',
+            '--no-zmq', '--no-igd', '--disable-dns-checkpoints',
+            '--check-updates', 'disabled',
+            '--log-file', $logFile
+          )
+          $process = $null
+          $passed = $false
+          $lastRpcError = ''
+          try {
+            Write-Host "VMRX: starting compiled Windows executable from pinned fork source"
+            Write-Host "Daemon path: $daemon"
+            Write-Host "Working dir: $(Split-Path $daemon)"
+            $process = Start-Process -FilePath $daemon -ArgumentList $params -WorkingDirectory (Split-Path $daemon) -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+            $info = $null
+            for ($i = 0; $i -lt 90; $i++) {
+              Start-Sleep -Seconds 2
+              if ($process.HasExited) { throw "VMRX daemon exited before RPC: $($process.ExitCode)" }
+              try {
+                $info = Invoke-RestMethod -Uri 'http://127.0.0.1:29781/get_info' -TimeoutSec 3
+                if ($info.height -ge 1) { break }
+              } catch {
+                $lastRpcError = $_.Exception.Message
+              }
+            }
+            if ($null -eq $info -or $info.height -lt 1) {
+              throw "VMRX daemon did not start local RPC; last error: $lastRpcError"
+            }
+            Write-Host "RPC get_info height: $($info.height) — network: $($info.nettype)"
+            $body = @{jsonrpc='2.0'; id='0'; method='get_block_header_by_height'; params=@{height=0}} | ConvertTo-Json -Depth 5
+            $result = Invoke-RestMethod -Uri 'http://127.0.0.1:29781/json_rpc' -Method POST -ContentType 'application/json' -Body $body -TimeoutSec 10
+            if ($result.error) { throw "RPC returned error: $($result.error | ConvertTo-Json -Depth 4 -Compress)" }
+            $expected = '405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4'
+            $actual = [string]$result.result.block_header.hash
+            Write-Host "Expected genesis: $expected"
+            Write-Host "Observed genesis: $actual"
+            if ($actual -ne $expected) { throw "WRONG GENESIS: $actual (expected $expected)" }
+            $passed = $true
+            Write-Host "PASS: Native VMRX Windows Core running with correct genesis $actual"
+          } finally {
+            if ($process -and -not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+            if (-not $passed) {
+              Write-Host '=== Failed Windows VMRX smoke test: daemon diagnostics ==='
+              if (Test-Path $logFile) { Get-Content $logFile -Tail 100 -ErrorAction SilentlyContinue }
+              if (Test-Path $stderrFile) { Get-Content $stderrFile -Tail 60 -ErrorAction SilentlyContinue }
+              if (Test-Path $stdoutFile) { Get-Content $stdoutFile -Tail 60 -ErrorAction SilentlyContinue }
+            }
+          }
+
+      - name: Upload diagnostics when Windows daemon smoke test fails
+        if: failure() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-windows-smoke-diagnostics
+          path: ${{ runner.temp }}/vmrx-integrated-windows-smoke/*.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Package verified Windows GUI + full core
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force release | Out-Null
-          Compress-Archive -Path dist/VMRX-Node-Miner.exe -DestinationPath release/VMRX-Node-Miner-windows-x64.zip -Force
-      - name: Upload built preview packages
+          Copy-Item 'dist/VMRX-Node-Miner.exe' 'release-bundle/VMRX-Node-Miner.exe'
+          Copy-Item 'README-WINDOWS-v0.1.1.txt' 'release-bundle/README-WINDOWS.txt'
+          if (!(Test-Path 'release-bundle/core/monerod.exe')) { throw 'No Windows Core: refusing to release GUI-only archive' }
+          Compress-Archive -Path 'release-bundle/*' -DestinationPath 'release/VMRX-Node-Miner-windows-x64.zip' -CompressionLevel Optimal -Force
+          if ((Get-Item 'release/VMRX-Node-Miner-windows-x64.zip').Length -lt 20000000) {
+            throw 'Windows package unexpectedly small; refusing incomplete release'
+          }
+
+      - name: Upload platform preview packages
         uses: actions/upload-artifact@v4
         with:
           name: vmrx-gui-${{ runner.os }}
           path: release/*
           if-no-files-found: error
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: gui
@@ -71,12 +258,20 @@ jobs:
           pattern: vmrx-gui-*
           path: release
           merge-multiple: true
+      - name: Require actual Windows core package and release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "RELEASE_NOTES_${GITHUB_REF_NAME}.md"
+          test -s release/VMRX-Node-Miner-windows-x64.zip
+          test -s release/VMRX-Node-Miner-linux-x86_64.tar.gz
+          unzip -Z1 release/VMRX-Node-Miner-windows-x64.zip | grep -Eq '^core/monerod\.exe$'
       - name: Write checksums
         shell: bash
         run: |
           cd release
           sha256sum VMRX-Node-Miner-* > SHA256SUMS
-      - name: Publish public Windows/Linux GUI release
+      - name: Publish integrated Windows node + Linux GUI release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -85,5 +280,5 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" release/* \
             --verify-tag \
             --latest \
-            --title "VMRX Node & Miner ${GITHUB_REF_NAME} — Windows & Linux" \
-            --notes-file RELEASE_NOTES_v0.1.0.md
+            --title "VMRX Node & Miner ${GITHUB_REF_NAME} — Windows (Core included) & Linux GUI" \
+            --notes-file "RELEASE_NOTES_${GITHUB_REF_NAME}.md"
