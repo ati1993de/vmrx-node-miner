@@ -1,4 +1,4 @@
-"""VMRX Node & Miner v0.1.0 — local-only desktop controller.
+"""VMRX Node & Miner v0.1.1 — local-only desktop controller.
 
 Requires only Python 3.12 + Tkinter at runtime. No seed phrase or wallet keys.
 """
@@ -24,7 +24,7 @@ TEXT, MUTED, CYAN, GREEN, AMBER = "#e8f2fa", "#a2b5c6", "#2ed7dc", "#63dab5", "#
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("VMRX · Node & Miner v0.1.0")
+        self.title("VMRX · Node & Miner v0.1.1")
         self.geometry("920x680")
         self.minsize(820, 590)
         self.configure(bg=BG)
@@ -84,7 +84,7 @@ class App(tk.Tk):
         tk.Label(titles, text="VMRX", fg=TEXT, bg=BG, font=("Segoe UI", 23, "bold")).pack(anchor="w")
         tk.Label(titles, text="VARGAMESH RX  /  RANDOMX MAINNET", fg=CYAN, bg=BG,
                  font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        tk.Label(bar, text="v0.1.0  •  LOCAL RPC", bg=SURFACE, fg=CYAN,
+        tk.Label(bar, text="v0.1.1  •  LOCAL RPC", bg=SURFACE, fg=CYAN,
                  font=("Segoe UI", 9, "bold"), padx=13, pady=8).pack(side="right")
         self.tabs = ttk.Notebook(self)
         self.tabs.pack(fill="both", expand=True, padx=24)
