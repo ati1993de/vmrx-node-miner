@@ -23,7 +23,7 @@ class BundledCoreTest(unittest.TestCase):
             candidate.write_bytes(b"test-only")
             candidate.chmod(0o755)
             with patch("node_process.sys.executable", str(root / "VMRX-Node-Miner.exe")), patch("node_process.sys.frozen", True, create=True):
-                self.assertEqual(find_bundled_daemon(), str(candidate))
+                self.assertEqual(Path(find_bundled_daemon()).resolve(), candidate.resolve())
 
     def test_unrelated_executable_is_ignored(self):
         with tempfile.TemporaryDirectory() as tmp:
