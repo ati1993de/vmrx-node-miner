@@ -339,7 +339,7 @@ jobs:
           test -s "RELEASE_NOTES_${GITHUB_REF_NAME}.md"
           test -s release/VMRX-Node-Miner-windows-x64.zip
           test -s release/VMRX-Node-Miner-linux-x86_64.tar.gz
-          unzip -Z1 release/VMRX-Node-Miner-windows-x64.zip | grep -Eq '^core/monerod\.exe$'
+          unzip -Z1 release/VMRX-Node-Miner-windows-x64.zip | grep -Eq '^core/vmrxd\.exe$'
       - name: Write checksums
         shell: bash
         run: |
