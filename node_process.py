@@ -9,8 +9,29 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 
 PEER_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9.-]*):(\d{1,5})$")
+
+
+def find_bundled_daemon() -> str:
+    """Return only a daemon located beside this app in the expected release layout.
+
+    No network fetches, no executable search via PATH and no automatic process
+    startup. The user must explicitly click Start local node.
+    """
+    root = (Path(sys.executable).resolve().parent if getattr(sys, "frozen", False)
+            else Path(__file__).resolve().parent)
+    candidates = (
+        root / "core" / "monerod.exe",
+        root / "core" / "vmrxd.exe",
+        root / "core" / "monerod",
+        root / "core" / "vmrxd",
+    )
+    for candidate in candidates:
+        if candidate.is_file() and (os.name == "nt" or os.access(candidate, os.X_OK)):
+            return str(candidate)
+    return ""
 
 
 def checked_peer(peer: str) -> str:
