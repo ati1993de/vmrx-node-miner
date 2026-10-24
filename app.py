@@ -257,7 +257,15 @@ class App(tk.Tk):
                         self.fields["height"].set(str(info.get("height", "—")))
                         self.fields["peers"].set(str(info.get("incoming_connections_count", 0) + info.get("outgoing_connections_count", 0)))
                         self.fields["difficulty"].set(str(info.get("difficulty", "—")))
-                        self.fields["sync"].set("Synchronized" if info.get("synchronized") else "Syncing / isolated")
+                        peers = int(info.get("incoming_connections_count", 0)) + int(info.get("outgoing_connections_count", 0))
+                        # The RPC 'synchronized' flag alone cannot prove network
+                        # sync if this local daemon has no connected VMRX peers.
+                        if peers == 0:
+                            self.fields["sync"].set("ISOLATED — no peers")
+                        elif info.get("synchronized"):
+                            self.fields["sync"].set("Synchronized (peer connected)")
+                        else:
+                            self.fields["sync"].set("Syncing mainnet")
                         self.fields["mining"].set("Active" if mining.get("active") else "Inactive")
                         self.fields["speed"].set(f"{mining.get('speed', 0)} H/s")
                         self.fields["hash"].set(str(info.get("top_block_hash", "—")))
