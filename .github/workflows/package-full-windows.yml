@@ -1,0 +1,48 @@
+name: Assemble full Windows VMRX Node and Miner
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  complete-windows:
+    name: Windows x64 GUI + native Core package
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Checkout GUI packaging source
+        uses: actions/checkout@v4
+
+      - name: Download the already published Windows GUI
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force 'incoming/gui' | Out-Null
+          gh release download v0.1.0 -R ati1993de/vmrx-node-miner -p 'VMRX-Node-Miner-windows-x64.zip' -p 'SHA256SUMS' -D incoming/gui
+
+      - name: Download verified native Windows VMRX Core
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force 'incoming/core' | Out-Null
+          gh release download v0.1.0 -R ati1993de/vmrx-core -p 'VMRX-Core-windows-x86_64-*.zip' -p 'SHA256SUMS' -D incoming/core
+          if ($LASTEXITCODE -ne 0) { throw 'No Windows Core v0.1.0 release yet. Build and verify the native Windows Core first.' }
+
+      - name: Verify checksums and smoke-test integrated Windows core
+        shell: pwsh
+        run: ./scripts/package-windows-full.ps1
+
+      - name: Upload complete Windows bundle for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmrx-complete-windows-x64
+          path: full-release/*
+          if-no-files-found: error
+          retention-days: 30
+
+# IMPORTANT: this workflow does not automatically publish a false "stable"
+# release before the Core has passed independent chain-sync and wallet tests.
