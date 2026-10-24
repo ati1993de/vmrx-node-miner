@@ -4,10 +4,10 @@ This release fixes the **missing Windows node** in the v0.1.0 GUI-only ZIP.
 
 ## Windows x64 (build-gated)
 
-- Ships `VMRX-Node-Miner.exe` alongside `core/vmrxd.exe` and the needed native MinGW runtime DLLs.
-- Compiles the daemon from the **actual VMRX Core** fork at pinned revision `fea970dce4d6237e0357aa0c5830d5e348cdda86` — no Monero binary substitution.
+- Ships `VMRX-Node-Miner.exe` alongside `core/monerod.exe` and the needed native MinGW runtime DLLs.
+- Compiles the daemon from the **actual VMRX Core** fork at pinned revision `746fbe7878a037d36d0d20404b8971798448fa9b` — no Monero binary substitution.
 - Native Windows smoke test is **mandatory**: launch the daemon offline on localhost, query `get_info`, and verify genesis `405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4` over JSON RPC.
-- Stops the release pipeline if compilation, node startup, genesis verification or inclusion of `core/vmrxd.exe` fails.
+- Stops the release pipeline if compilation, node startup, genesis verification or inclusion of `core/monerod.exe` fails.
 - Preselects the bundled daemon automatically in **Node Control**; starting it remains an explicit user action.
 - Adds a Windows quick-start guide, Core source provenance, license and SHA256 checksums.
 
