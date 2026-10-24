@@ -42,6 +42,10 @@ A VMRX-only peer `31.70.81.5:29780` is prefilled (observed by the operator; avai
 
 This means no daemon currently accepts connections at `127.0.0.1:29781`. Open **Node Control** to select/start VMRX Core. It is not a browser/server login failure. The Windows GUI alone cannot start mining without a separate compatible native Windows node.
 
+## Native Windows full-node bundle (in development)
+
+The `main` branch supports auto-selection of a **bundled** Windows daemon at `core/monerod.exe`. It never downloads or starts an executable without the user's action. The [complete Windows package workflow](.github/workflows/package-full-windows.yml) requires an independently checked **native Windows VMRX Core release**, which is not yet published. The workflow verifies both archives' SHA256SUMS and checks the bundled daemon's VMRX genesis before producing a single ZIP artifact. The GUI v0.1.0 release remains GUI-only. Do not mix it with upstream Monero binaries. See the [Windows Core build guide](https://github.com/ati1993de/vmrx-core/blob/main/docs/WINDOWS_BUILD.md).
+
 ## Running from source
 
 Linux **desktop** (not headless VPS):
