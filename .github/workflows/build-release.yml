@@ -34,7 +34,7 @@ jobs:
         run: |
           test -s assets/vmrx-logo.png
           ! test -f assets/vmrx-draft.png
-          grep -q 'v0.1.1' app.py
+          grep -q 'v0.1.2-dev' app.py
 
       - name: Linux Tk GUI dependencies
         if: runner.os == 'Linux'
@@ -69,7 +69,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ati1993de/vmrx-core
-          ref: fea970dce4d6237e0357aa0c5830d5e348cdda86
+          ref: 38c5bb658604028d03b90fca7221d0d10ad88dcc
           path: vmrx-core
           submodules: recursive
           persist-credentials: false
@@ -149,7 +149,7 @@ jobs:
           done
           cp vmrx-core/LICENSE release-bundle/core/CORE-LICENSE.txt
           cp vmrx-core/docs/RELEASE_STATUS.md release-bundle/core/CORE-RELEASE-STATUS.md
-          printf '%s\n' 'VMRX Core source: ati1993de/vmrx-core' 'Commit: fea970dce4d6237e0357aa0c5830d5e348cdda86' > release-bundle/core/CORE-SOURCE.txt
+          printf '%s\n' 'VMRX Core source: ati1993de/vmrx-core' 'Commit: 38c5bb658604028d03b90fca7221d0d10ad88dcc' > release-bundle/core/CORE-SOURCE.txt
           test -s release-bundle/core/vmrxd.exe
 
       - name: Windows mainnet genesis smoke test (must pass to release)
@@ -305,7 +305,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force release | Out-Null
           Copy-Item 'dist/VMRX-Node-Miner.exe' 'release-bundle/VMRX-Node-Miner.exe'
-          Copy-Item 'README-WINDOWS-v0.1.1.txt' 'release-bundle/README-WINDOWS.txt'
+          Copy-Item 'README-WINDOWS-v0.1.2.txt' 'release-bundle/README-WINDOWS.txt'
           if (!(Test-Path 'release-bundle/core/vmrxd.exe')) { throw 'No Windows Core: refusing to release GUI-only archive' }
           Compress-Archive -Path 'release-bundle/*' -DestinationPath 'release/VMRX-Node-Miner-windows-x64.zip' -CompressionLevel Optimal -Force
           if ((Get-Item 'release/VMRX-Node-Miner-windows-x64.zip').Length -lt 20000000) {
