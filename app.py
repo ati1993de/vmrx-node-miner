@@ -312,8 +312,11 @@ class App(tk.Tk):
         def job():
             rpc = VMRXRpc(port)
             info = rpc.info()
+            peers = int(info.get("incoming_connections_count") or 0) + int(info.get("outgoing_connections_count") or 0)
+            if peers < 1:
+                raise RpcError("VMRX node is ISOLATED (0 peers); refusing to mine without a confirmed mainnet peer")
             if not info.get("synchronized"):
-                raise RpcError("Daemon is not synchronized; mining would return BUSY")
+                raise RpcError("Daemon is not synchronized with VMRX mainnet; mining would return BUSY")
             rpc.start_mining(address, threads, background)
             return "CPU mining started successfully"
         self._task("action", job)
