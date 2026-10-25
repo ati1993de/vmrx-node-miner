@@ -2,13 +2,13 @@
 
 <p align="center"><img src="assets/vmrx-logo.png" alt="Official VMRX logo" width="144"></p>
 
-**VargaMesh RX · published v0.1.1; v0.1.2-dev Windows synchronization and branding corrections under review**
+**VargaMesh RX · Windows x64 bundled Core + Linux desktop Node & Miner**
 
 [Latest release](https://github.com/ati1993de/vmrx-node-miner/releases/latest) · [VMRX Core](https://github.com/ati1993de/vmrx-core) · [Security](SECURITY.md)
 
 VMRX Node & Miner is a desktop application for monitoring and controlling a **local VMRX daemon**. It shows blockchain height, peer count, difficulty, synchronization, chain tip and mining hashrate; it can start/stop CPU mining on a connected local daemon. All RPC traffic goes to `127.0.0.1`.
 
-> **Release status:** **v0.1.1 is officially published for Windows x64 and Linux x86_64.** The [Windows ZIP](https://github.com/ati1993de/vmrx-node-miner/releases/download/v0.1.1/VMRX-Node-Miner-windows-x64.zip) includes the real VMRX `core/monerod.exe` (upstream executable name in this older package) and passed a native build + localhost RPC genesis test, **but failed to synchronize past the genesis block in a real Windows test**. The old v0.1.0 was GUI-only. Linux remains GUI-only and requires the separate [VMRX Core Linux release](https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.1). Neither GUI handles wallet keys or seeds. The v0.1.2-dev branch replaces `monerod.exe` with `vmrxd.exe`, allows non-exclusive preferred VMRX peers, includes transparent PNG logo assets, and makes real mainnet block-1 sync mandatory before a new release. Wallet spend/recovery remain unaudited.
+> **Mainnet compatibility:** The Windows v0.1.1 package is obsolete: its Core starts at genesis but rejects historic mainnet block 1. The **v0.1.2** release replaces it with native **`core/vmrxd.exe`**, the original VMRX logo and MinGW dependencies, built from the fixed Core source. Its release workflow requires real P2P synchronization and matching hashes at heights 0, 1, 2, 10, 100 and 1193. The Linux GUI is distributed separately from the Linux Core. This GUI controls the node and CPU miner; it is **not a wallet**.
 
 ## Features
 
@@ -30,19 +30,19 @@ Download the relevant archive and `SHA256SUMS` from [Releases](https://github.co
 
 ### Windows 10 / 11 x64
 
-**Download the official [Windows v0.1.1 ZIP](https://github.com/ati1993de/vmrx-node-miner/releases/download/v0.1.1/VMRX-Node-Miner-windows-x64.zip)** and extract the **entire ZIP** (not only the EXE). Keep `core/monerod.exe` and DLLs next to `VMRX-Node-Miner.exe` (the upcoming tested build will use `core/vmrxd.exe`). Open **Node Control**, where the packaged node is auto-selected, and click **Start local node**. Wait until fully synchronized before using CPU Mining with an independently verified VMRX receiving address. See `README-WINDOWS.txt` within the ZIP. The old v0.1.0 ZIP has no node.
+Download the [current Windows ZIP](https://github.com/ati1993de/vmrx-node-miner/releases/latest), verify `SHA256SUMS`, and extract **every file** into a fresh folder. Keep `VMRX-Node-Miner.exe`, `core/vmrxd.exe`, `core/vmrx.ico` and the MinGW runtime DLLs together. Start `VMRX-Node-Miner.exe`, open **Node Control**, and select **Start local node**. The bundled Core is auto-detected; it is **not** launched automatically. Confirm at least one connected VMRX P2P peer and synchronization with the genuine mainnet tip before enabling CPU mining to an independently verified VMRX address.
 
 ### Linux x86_64 desktop
 
-Extract `VMRX-Node-Miner-linux-x86_64.tar.gz` and run `./VMRX-Node-Miner` **in a graphical desktop session**. Separately download and verify the Linux Core from [VMRX Core releases](https://github.com/ati1993de/vmrx-core/releases/latest). In **Node Control**, select the released VMRX daemon (`monerod` in the present fork), choose a fresh data directory and launch it. Wait for sync before enabling CPU mining.
+Extract `VMRX-Node-Miner-linux-x86_64.tar.gz` and run `./VMRX-Node-Miner` **in a graphical desktop session**. Separately download and verify the Linux Core from [VMRX Core releases](https://github.com/ati1993de/vmrx-core/releases/latest). In **Node Control**, select the released VMRX daemon (`vmrxd` for v0.1.2; older builds may still use `monerod`), choose a fresh data directory and launch it. Wait for sync before enabling CPU mining.
 
-The v0.1.2-dev candidate prioritizes both `31.70.81.5:29780` (Windrose P2P observed) and `217.154.93.20:29780` (operator-supplied; live VMRX handshake unverified), **non-exclusively**. Older v0.1.1 only offers the single exclusive Windrose peer. Never connect to upstream Monero peers or reuse Monero/VMESH data directories. P2P and RPC bind to loopback in this controller; running a public seed node is a separate administrative task.
+The v0.1.2 controller prioritizes both `31.70.81.5:29780` (Windrose P2P observed) and `217.154.93.20:29780` (operator-supplied; live VMRX handshake unverified), **non-exclusively**. Older v0.1.1 only offers the single exclusive Windrose peer. Never connect to upstream Monero peers or reuse Monero/VMESH data directories. P2P and RPC bind to loopback in this controller; running a public seed node is a separate administrative task.
 
 ### Dashboard says Offline / WinError 10061
 
 This means no daemon currently accepts connections at `127.0.0.1:29781`. In the v0.1.1 integrated Windows archive, verify `core/monerod.exe` exists and is preselected in **Node Control**; click **Start local node**. Examine `<data directory>/vmrx-node.log` if the daemon exits. The old **v0.1.0 ZIP has no node**.
 
-## Native Windows full-node bundle (released)
+## Native Windows full-node bundle and legacy v0.1.1
 
 The [official v0.1.1 Windows GUI ZIP](https://github.com/ati1993de/vmrx-node-miner/releases/tag/v0.1.1) bundles `VMRX-Node-Miner.exe` together with a fork-specific native `core/monerod.exe` and DLLs. The daemon is preselected but never started without a user action. Its build workflow verified the real Windows executable and the VMRX mainnet genesis over localhost RPC. Independently, the [official Windows-only Core package](https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.1) is available. **Known v0.1.1 defect:** Windows connected to Windrose, learned block 807, but banned its peer and remained at height 1. Do not interpret 1/1 (100%) with zero peers as a synced node. See [sync issue #2](https://github.com/ati1993de/vmrx-node-miner/issues/2). Do not substitute upstream Monero binaries, reuse Monero blockchain data or assume wallet recovery/spend safety just because genesis passed.
 

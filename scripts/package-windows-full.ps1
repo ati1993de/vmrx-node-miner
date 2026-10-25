@@ -37,28 +37,28 @@ Expand-Archive $guiArchive (Join-Path $work 'gui')
 Expand-Archive $coreArchive (Join-Path $work 'core-unpack')
 
 $guiExecutables = @(Get-ChildItem (Join-Path $work 'gui') -Recurse -File -Filter 'VMRX-Node-Miner.exe')
-$coreExecutables = @(Get-ChildItem (Join-Path $work 'core-unpack') -Recurse -File -Filter 'monerod.exe')
+$coreExecutables = @(Get-ChildItem (Join-Path $work 'core-unpack') -Recurse -File -Filter 'vmrxd.exe')
 if ($guiExecutables.Count -ne 1 -or $coreExecutables.Count -ne 1) {
     throw "Expected exactly one GUI exe and exactly one native Windows VMRX daemon"
 }
 $destination = Join-Path $work 'VMRX-Windows-Full'
 Copy-Item $guiExecutables[0].FullName (Join-Path $destination 'VMRX-Node-Miner.exe')
-# Copy daemon DLLs from the validated Core package together with monerod.exe.
+# Copy daemon DLLs from the validated Core package together with vmrxd.exe.
 $coreBin = $coreExecutables[0].Directory.FullName
 Copy-Item (Join-Path $coreBin '*') (Join-Path $destination 'core') -Recurse -Force
 
-if (-not (Test-Path (Join-Path $destination 'core/monerod.exe'))) {
-    throw "No core/monerod.exe in bundled release"
+if (-not (Test-Path (Join-Path $destination 'core/vmrxd.exe'))) {
+    throw "No core/vmrxd.exe in bundled release"
 }
 Copy-Item 'LICENSE-DECISION.md' (Join-Path $destination 'GUI-LICENSE-NOTES.md')
 @'
-VMRX Windows Node & Miner bundle
+VMRX Node & Miner v0.1.2 — Windows full bundle
 
 1. Run VMRX-Node-Miner.exe on Windows 10/11 x64.
-2. In Node Control, the bundled core/monerod.exe is preselected.
-3. Confirm the node data directory and verified VMRX peer.
+2. In Node Control, the bundled core/vmrxd.exe is preselected.
+3. Confirm the node data directory and use a verified VMRX peer.
 4. Click Start local node; wait for blockchain synchronization.
-5. Enter an address you independently control before enabling CPU mining.
+5. Check P2P peers and the mainnet tip, then enter an independently verified address before enabling CPU mining.
 
 Local unrestricted RPC is available ONLY at 127.0.0.1:29781.
 This controller is NOT a full wallet; no seed entry / funds management.
@@ -70,7 +70,7 @@ in the VMRX Core repository. No independent security audit is claimed.
 # Require native daemon to start on Windows and expose correct VMRX genesis.
 $testDir = Join-Path $work 'genesis-smoke'
 New-Item -ItemType Directory -Force $testDir | Out-Null
-$daemon = Join-Path $destination 'core/monerod.exe'
+$daemon = Join-Path $destination 'core/vmrxd.exe'
 $argsList = @('--non-interactive', '--offline', '--data-dir', "`"$testDir`"",
   '--p2p-bind-ip', '127.0.0.1', '--p2p-bind-port', '29780',
   '--rpc-bind-ip', '127.0.0.1', '--rpc-bind-port', '29781',

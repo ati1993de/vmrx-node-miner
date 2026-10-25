@@ -18,7 +18,7 @@ class BundledCoreTest(unittest.TestCase):
     def test_only_core_subdirectory_is_selected(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            candidate = root / "core" / "monerod.exe"
+            candidate = root / "core" / "vmrxd.exe"
             candidate.parent.mkdir()
             candidate.write_bytes(b"test-only")
             candidate.chmod(0o755)

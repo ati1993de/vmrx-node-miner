@@ -1,4 +1,4 @@
-"""VMRX Node & Miner v0.1.1 — local-only desktop controller.
+"""VMRX Node & Miner v0.1.2 — local-only desktop controller.
 
 Requires only Python 3.12 + Tkinter at runtime. No seed phrase or wallet keys.
 """
@@ -24,7 +24,7 @@ TEXT, MUTED, CYAN, GREEN, AMBER = "#e8f2fa", "#a2b5c6", "#2ed7dc", "#63dab5", "#
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("VMRX · Node & Miner v0.1.1")
+        self.title("VMRX · Node & Miner v0.1.2")
         self.geometry("920x680")
         self.minsize(820, 590)
         self.configure(bg=BG)
@@ -84,7 +84,7 @@ class App(tk.Tk):
         tk.Label(titles, text="VMRX", fg=TEXT, bg=BG, font=("Segoe UI", 23, "bold")).pack(anchor="w")
         tk.Label(titles, text="VARGAMESH RX  /  RANDOMX MAINNET", fg=CYAN, bg=BG,
                  font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        tk.Label(bar, text="v0.1.1  •  LOCAL RPC", bg=SURFACE, fg=CYAN,
+        tk.Label(bar, text="v0.1.2  •  LOCAL RPC", bg=SURFACE, fg=CYAN,
                  font=("Segoe UI", 9, "bold"), padx=13, pady=8).pack(side="right")
         self.tabs = ttk.Notebook(self)
         self.tabs.pack(fill="both", expand=True, padx=24)
@@ -184,8 +184,8 @@ class App(tk.Tk):
         actions.pack(anchor="w", padx=18, pady=14)
         ttk.Button(actions, text="▶ Start local node", command=self.start_node).pack(side="left", padx=(0, 12))
         ttk.Button(actions, text="■ Stop node I launched", command=self.stop_node).pack(side="left")
-        tk.Label(frame, text="Verified VMRX peer prefilled: 31.70.81.5:29780 (operator-run; availability not guaranteed).\n"
-                 "Leave peer empty for an isolated node. RPC/P2P bind to localhost; no Monero discovery.",
+        tk.Label(frame, text="VMRX mainnet preferred peers: 31.70.81.5:29780 and 217.154.93.20:29780 (availability not guaranteed).\n"
+                 "A filled peer uses non-exclusive priority connections and VMRX-only discovery.\nLeave empty for isolation. Local RPC/P2P bind to localhost; no Monero seeds.",
                  bg=BG, fg=AMBER, justify="left", wraplength=800).pack(anchor="w", padx=18, pady=(10, 0))
 
     def _about(self, frame):
@@ -257,7 +257,15 @@ class App(tk.Tk):
                         self.fields["height"].set(str(info.get("height", "—")))
                         self.fields["peers"].set(str(info.get("incoming_connections_count", 0) + info.get("outgoing_connections_count", 0)))
                         self.fields["difficulty"].set(str(info.get("difficulty", "—")))
-                        self.fields["sync"].set("Synchronized" if info.get("synchronized") else "Syncing / isolated")
+                        peers = int(info.get("incoming_connections_count", 0)) + int(info.get("outgoing_connections_count", 0))
+                        # The RPC 'synchronized' flag alone cannot prove network
+                        # sync if this local daemon has no connected VMRX peers.
+                        if peers == 0:
+                            self.fields["sync"].set("ISOLATED — no peers")
+                        elif info.get("synchronized"):
+                            self.fields["sync"].set("Synchronized (peer connected)")
+                        else:
+                            self.fields["sync"].set("Syncing mainnet")
                         self.fields["mining"].set("Active" if mining.get("active") else "Inactive")
                         self.fields["speed"].set(f"{mining.get('speed', 0)} H/s")
                         self.fields["hash"].set(str(info.get("top_block_hash", "—")))
@@ -304,8 +312,11 @@ class App(tk.Tk):
         def job():
             rpc = VMRXRpc(port)
             info = rpc.info()
+            peers = int(info.get("incoming_connections_count") or 0) + int(info.get("outgoing_connections_count") or 0)
+            if peers < 1:
+                raise RpcError("VMRX node is ISOLATED (0 peers); refusing to mine without a confirmed mainnet peer")
             if not info.get("synchronized"):
-                raise RpcError("Daemon is not synchronized; mining would return BUSY")
+                raise RpcError("Daemon is not synchronized with VMRX mainnet; mining would return BUSY")
             rpc.start_mining(address, threads, background)
             return "CPU mining started successfully"
         self._task("action", job)

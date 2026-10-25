@@ -15,4 +15,4 @@ python -m PyInstaller --noconfirm --clean --onefile --windowed `
   --name VMRX-Node-Miner --icon assets/vmrx.ico --add-data 'assets;assets' app.py
 $sha = (Get-FileHash 'dist/VMRX-Node-Miner.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
 "$sha  VMRX-Node-Miner.exe" | Set-Content 'dist/VMRX-Node-Miner.sha256' -Encoding ascii
-Write-Host 'VMRX GUI build completed. Windows VMRX Core daemon is NOT included.'
+Write-Host 'VMRX GUI-only executable built. Integrated GitHub release workflow separately bundles the native VMRX Core.'

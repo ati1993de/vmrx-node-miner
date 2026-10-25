@@ -21,7 +21,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           New-Item -ItemType Directory -Force 'incoming/gui' | Out-Null
-          gh release download v0.1.0 -R ati1993de/vmrx-node-miner -p 'VMRX-Node-Miner-windows-x64.zip' -p 'SHA256SUMS' -D incoming/gui
+          gh release download v0.1.2 -R ati1993de/vmrx-node-miner -p 'VMRX-Node-Miner-windows-x64.zip' -p 'SHA256SUMS' -D incoming/gui
 
       - name: Download verified native Windows VMRX Core
         shell: pwsh
@@ -29,8 +29,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           New-Item -ItemType Directory -Force 'incoming/core' | Out-Null
-          gh release download v0.1.0 -R ati1993de/vmrx-core -p 'VMRX-Core-windows-x86_64-*.zip' -p 'SHA256SUMS' -D incoming/core
-          if ($LASTEXITCODE -ne 0) { throw 'No Windows Core v0.1.0 release yet. Build and verify the native Windows Core first.' }
+          gh release download v0.1.2 -R ati1993de/vmrx-core -p 'VMRX-Core-windows-x86_64-*.zip' -p 'SHA256SUMS' -D incoming/core
+          if ($LASTEXITCODE -ne 0) { throw 'VMRX Core v0.1.2 required before assembling the full Windows bundle.' }
 
       - name: Verify checksums and smoke-test integrated Windows core
         shell: pwsh
