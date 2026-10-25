@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main, fix/vmrx-branded-daemon-and-block1-sync]
-    tags: ['v*']
+    # New main releases use the pinned, verified publish-v013-main.yml workflow.
+    # This v0.1.2 build must not attempt to republish new tags.
   pull_request:
 
 permissions:
@@ -322,42 +323,3 @@ jobs:
           path: release/*
           if-no-files-found: error
 
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: gui
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: vmrx-gui-*
-          path: release
-          merge-multiple: true
-      - name: Require actual Windows core package and release notes
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s "RELEASE_NOTES_${GITHUB_REF_NAME}.md"
-          test -s release/VMRX-Node-Miner-windows-x64.zip
-          test -s release/VMRX-Node-Miner-linux-x86_64.tar.gz
-          unzip -Z1 release/VMRX-Node-Miner-windows-x64.zip | grep -Eq '^core/vmrxd\.exe$'
-          unzip -Z1 release/VMRX-Node-Miner-windows-x64.zip | grep -Eq '^core/vmrx\.ico$'
-          unzip -Z1 release/VMRX-Node-Miner-windows-x64.zip | grep -Eq '^core/CORE-SOURCE\.txt$'
-      - name: Write checksums
-        shell: bash
-        run: |
-          cd release
-          sha256sum VMRX-Node-Miner-* > SHA256SUMS
-      - name: Publish integrated Windows node + Linux GUI release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          gh release create "${GITHUB_REF_NAME}" release/* \
-            --verify-tag \
-            --latest \
-            --title "VMRX Node & Miner ${GITHUB_REF_NAME} — Windows (Core included) & Linux GUI" \
-            --notes-file "RELEASE_NOTES_${GITHUB_REF_NAME}.md"
