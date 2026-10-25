@@ -20,8 +20,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ati1993de/vmrx-node-miner
-      VMRX_GUI_SOURCE_SHA: ceffaac799262e8e3d82d004b47480a9f32fcec1
-      GUI_RUN_ID: '40182743693'
+      VMRX_GUI_SOURCE_SHA: e297aceeee4783ab60960e25bfae7fa511725b1f
       VMRX_CORE_SOURCE_SHA: f36808895e2bb9b21f5d2bb776f299773e90a693
     steps:
       - uses: actions/checkout@v4
@@ -42,13 +41,13 @@ jobs:
           test -s RELEASE_NOTES_v0.1.2.md
           git cat-file -e "${VMRX_GUI_SOURCE_SHA}^{commit}"
           git diff --exit-code "${VMRX_GUI_SOURCE_SHA}" HEAD -- app.py node_process.py rpc_client.py tests scripts requirements-build.txt assets .github/workflows/build-release.yml
-          sha="$(gh api "repos/${GH_REPO}/actions/runs/${GUI_RUN_ID}" --jq '.head_sha')"
-          status="$(gh api "repos/${GH_REPO}/actions/runs/${GUI_RUN_ID}" --jq '.status')"
-          result="$(gh api "repos/${GH_REPO}/actions/runs/${GUI_RUN_ID}" --jq '.conclusion')"
-          echo "GUI CI: ${sha} ${status} ${result}"
-          test "${sha}" = "${VMRX_GUI_SOURCE_SHA}"
-          test "${status}" = completed
-          test "${result}" = success
+          # Require a complete successful, exact-commit dual-OS GUI workflow run.
+          # Do not accept a green result for older GUI source or a previous Core pin.
+          run_id="$(gh api "repos/${GH_REPO}/actions/runs?head_sha=${VMRX_GUI_SOURCE_SHA}&per_page=100" |
+            jq -r --arg sha "${VMRX_GUI_SOURCE_SHA}" '[.workflow_runs[] | select(.head_sha == $sha and .name == "VMRX Node & Miner — integrated Windows Core and Linux GUI" and .status == "completed" and .conclusion == "success") | .id] | first // empty')"
+          test -n "${run_id}" || { echo "No green GUI CI for exact ${VMRX_GUI_SOURCE_SHA}"; exit 1; }
+          echo "GUI_RUN_ID=${run_id}" >> "${GITHUB_ENV}"
+          echo "PASS: exact GUI CI ${run_id} succeeded on Linux and Windows"
           grep -Fq "ref: ${VMRX_CORE_SOURCE_SHA}" .github/workflows/build-release.yml
 
       - name: Download tested native GUI+Core Windows and Linux GUI
