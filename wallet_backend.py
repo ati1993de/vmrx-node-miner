@@ -35,6 +35,32 @@ class WalletError(RuntimeError):
     pass
 
 
+
+VMRX_GENESIS = "405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4"
+
+
+def verify_vmrx_daemon(port: int) -> None:
+    """Refuse to handle wallet keys when localhost RPC is not the VMRX mainnet."""
+    if not 1024 <= int(port) <= 65535:
+        raise WalletError("Invalid VMRX daemon RPC port")
+    endpoint = f"http://127.0.0.1:{int(port)}/json_rpc"
+    body = json.dumps({
+        "jsonrpc": "2.0", "id": "verify-vmrx", "method": "get_block_header_by_height",
+        "params": {"height": 0},
+    }).encode("utf-8")
+    request = urllib.request.Request(
+        endpoint, data=body, method="POST", headers={"Content-Type": "application/json"})
+    try:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with opener.open(request, timeout=5) as response:
+            payload = json.load(response)
+        genesis = payload["result"]["block_header"]["hash"]
+    except (OSError, ValueError, KeyError, TypeError):
+        raise WalletError("Could not verify the locally running VMRX Core daemon genesis") from None
+    if genesis != VMRX_GENESIS:
+        raise WalletError("WRONG BLOCKCHAIN at local daemon port: VMRX genesis mismatch; refusing wallet engine")
+
+
 def wallet_name(name: str) -> str:
     if not isinstance(name, str) or not _WALLET_NAME.fullmatch(name) or name in (".", ".."):
         raise WalletError("Wallet name must be 1–48 letters, digits, _ or - (starting with a letter/digit).")
@@ -205,6 +231,7 @@ class WalletService:
             target.mkdir(parents=True, exist_ok=True, mode=0o700)
             if os.name != "nt":
                 target.chmod(0o700)
+            verify_vmrx_daemon(int(daemon_port))
             username, auth_secret = "vmrxgui", secrets.token_urlsafe(32)
             cmd = [
                 str(binary), "--wallet-dir", str(target),
