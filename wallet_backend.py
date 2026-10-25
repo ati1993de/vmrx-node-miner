@@ -36,8 +36,7 @@ class WalletError(RuntimeError):
 
 
 def wallet_name(name: str) -> str:
-    name = name.strip()
-    if not _WALLET_NAME.fullmatch(name) or name in (".", ".."):
+    if not isinstance(name, str) or not _WALLET_NAME.fullmatch(name) or name in (".", ".."):
         raise WalletError("Wallet name must be 1–48 letters, digits, _ or - (starting with a letter/digit).")
     return name
 
@@ -73,7 +72,7 @@ class WalletRpc:
         self.url = f"http://127.0.0.1:{int(port)}/json_rpc"
         auth = urllib.request.HTTPPasswordMgrWithDefaultRealm()
         auth.add_password(None, self.url, username, password)
-        self.opener = urllib.request.build_opener(urllib.request.HTTPDigestAuthHandler(auth))
+        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPDigestAuthHandler(auth))
         self.timeout = timeout
 
     def call(self, method: str, params: dict | None = None) -> dict:
@@ -197,7 +196,10 @@ class WalletService:
                 raise WalletError("Wallet-RPC executable is not executable")
             if not all(1024 <= int(p) <= 65535 for p in (daemon_port, rpc_port)) or daemon_port == rpc_port:
                 raise WalletError("Invalid/conflicting localhost ports")
-            target = Path(wallet_dir).expanduser().resolve()
+            unresolved = Path(wallet_dir).expanduser()
+            if unresolved.is_symlink():
+                raise WalletError("Wallet folder must not be a symbolic link")
+            target = unresolved.resolve()
             if target.is_symlink():
                 raise WalletError("Wallet folder must not be a symbolic link")
             target.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -254,7 +256,10 @@ class WalletService:
             raise WalletError("Start wallet service")
         self.running_client().store()
         wallet = wallet_name(name)
-        base = Path(destination).expanduser().resolve()
+        unresolved = Path(destination).expanduser()
+        if unresolved.is_symlink():
+            raise WalletError("Backup destination must not be a symbolic link")
+        base = unresolved.resolve()
         if base.is_symlink() or base == self.directory or self.directory in base.parents:
             raise WalletError("Select a separate backup directory")
         base.mkdir(parents=True, exist_ok=True, mode=0o700)
