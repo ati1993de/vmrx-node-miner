@@ -4,7 +4,7 @@
 
 **VargaMesh RX · Windows x64 bundled Core + Linux desktop Node & Miner**
 
-> **Wallet development branch (NOT RELEASED):** The experimental Wallet (Beta) tab adds local wallet-RPC creation, mnemonic recovery, backups, balances and an opt-in two-stage send interface. **It is not a complete distributable wallet yet:** the published v0.1.2 Core packages do not contain a wallet-RPC executable, and native seed recovery / send testing is still outstanding. Do not use it for valuable coins. [Wallet instructions and release blockers](WALLET_GUIDE.md) · [VMRX official website](https://randomx.vargamesh.com/). The public v0.1.2 release remains Node & Miner only.
+> **Wallet development branch (NOT RELEASED):** The experimental Wallet (Beta) tab adds local wallet-RPC creation, mnemonic recovery, backups, balances and an opt-in two-stage send interface. **It is not a complete distributable wallet yet:** the published v0.1.3 Core packages do not contain a wallet-RPC executable, and native seed recovery / send testing is still outstanding. Do not use it for valuable coins. [Wallet instructions and release blockers](WALLET_GUIDE.md) · [VMRX official website](https://randomx.vargamesh.com/). The public v0.1.2 release remains Node & Miner only.
 
 [Latest release](https://github.com/ati1993de/vmrx-node-miner/releases/latest) · [VMRX Core](https://github.com/ati1993de/vmrx-core) · [Security](SECURITY.md) · [Wallet guide](WALLET_GUIDE.md) · [Official VMRX website](https://randomx.vargamesh.com/)
 
