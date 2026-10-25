@@ -1,4 +1,4 @@
-"""VMRX Node & Miner wallet integration beta — local-only desktop controller.
+"""VMRX Node & Miner wallet integration beta (based on v0.1.2) — local-only desktop controller.
 
 Python 3.12 + Tkinter at runtime; VMRX Core wallet-RPC required for wallet operations.
 """
