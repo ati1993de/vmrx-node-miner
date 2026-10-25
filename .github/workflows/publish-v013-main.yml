@@ -1,0 +1,143 @@
+name: Publish VMRX Node & Miner v0.1.3 as the main release
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-v013-main.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: vmrx-main-v013-publish
+  cancel-in-progress: false
+
+jobs:
+  main-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ati1993de/vmrx-node-miner
+      TARGET_TAG: v0.1.3
+      SOURCE_TAG: v0.1.3-wallet-beta.1
+      VERIFIED_SOURCE_SHA: f7a7be3965e6fce07cc0511c5110b054b6018030
+      VERIFIED_BUILD_RUN: '40192038780'
+      VERIFIED_WALLET_RUN: '40192038714'
+      WIN_SHA256: 3a62e9c5657a08821ba12f7d8c3e2b684b68c73a58e12a3f06569d4337690f16
+      LINUX_SHA256: 2a25f9640d308046350797d0eb4683da0936fdc3c93051e2bc1d26745de6fff7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm checked Windows/Linux tests and immutable pre-release provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          for run in "$VERIFIED_BUILD_RUN" "$VERIFIED_WALLET_RUN"; do
+            run_sha="$(gh api "repos/$GH_REPO/actions/runs/$run" --jq '.head_sha')"
+            run_conclusion="$(gh api "repos/$GH_REPO/actions/runs/$run" --jq '.conclusion')"
+            test "$run_sha" = "$VERIFIED_SOURCE_SHA" || { echo "GUI source mismatch: $run"; exit 1; }
+            test "$run_conclusion" = success || { echo "CI failed: $run"; exit 1; }
+          done
+          test "$(gh api "repos/$GH_REPO/releases/tags/$SOURCE_TAG" --jq '.prerelease')" = true
+          test "$(gh api "repos/$GH_REPO/releases/tags/$SOURCE_TAG" --jq '.assets | length')" -ge 3
+          if gh release view "$TARGET_TAG" -R "$GH_REPO" >/dev/null 2>&1 || gh api "repos/$GH_REPO/git/ref/tags/$TARGET_TAG" >/dev/null 2>&1; then
+            echo "Refusing to overwrite existing $TARGET_TAG release or tag"
+            exit 1
+          fi
+
+      - name: Download exact CI-tested Windows and Linux wallet archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          gh release download "$SOURCE_TAG" -R "$GH_REPO" \
+            -p 'VMRX-Node-Miner-wallet-beta-windows-x64.zip' \
+            -p 'VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz' -D release
+          win='release/VMRX-Node-Miner-wallet-beta-windows-x64.zip'
+          linux='release/VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz'
+          echo "$WIN_SHA256  $win" | sha256sum -c -
+          echo "$LINUX_SHA256  $linux" | sha256sum -c -
+          # Preserve byte-for-byte the packages that passed GUI and native wallet tests;
+          # only rename the download artifacts for main-release discoverability.
+          mv "$win" "release/VMRX-Node-Miner-windows-x64-v0.1.3.zip"
+          mv "$linux" "release/VMRX-Node-Miner-linux-x64-v0.1.3.tar.gz"
+
+      - name: Verify native wallet, Core and GUI exist in both archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -Z1 release/VMRX-Node-Miner-windows-x64-v0.1.3.zip > /tmp/vmrx-main-windows-files.txt
+          tar -tzf release/VMRX-Node-Miner-linux-x64-v0.1.3.tar.gz > /tmp/vmrx-main-linux-files.txt
+          for file in VMRX-Node-Miner.exe core/vmrxd.exe core/vmrx-wallet-rpc.exe WALLET_GUIDE.md; do
+            grep -Fxq "$file" /tmp/vmrx-main-windows-files.txt || { echo "Windows file missing: $file"; exit 1; }
+          done
+          for file in ./VMRX-Node-Miner ./core/vmrxd ./core/vmrx-wallet-rpc ./WALLET_GUIDE.md; do
+            grep -Fxq "$file" /tmp/vmrx-main-linux-files.txt || { echo "Linux file missing: $file"; exit 1; }
+          done
+          (cd release && sha256sum VMRX-Node-Miner-* > SHA256SUMS && sha256sum -c SHA256SUMS)
+
+      - name: Write main-release notes with explicit wallet safety disclosures
+        shell: bash
+        run: |
+          cat > release/RELEASE_NOTES.md <<'EOF'
+          # VMRX Node & Miner v0.1.3 — Main Release with Wallet (Experimental)
+
+          This is the **main/default GitHub release** of VMRX Node & Miner,
+          containing the Windows desktop EXE or Linux GUI plus VMRX Core v0.1.3
+          and the fork-native `vmrx-wallet-rpc` engine in a portable archive.
+
+          **Wallet functionality remains experimental (beta quality).**
+          Being designated the main release does not mean the wallet is audited
+          or safe for meaningful balances.
+
+          ## Included
+          - Node and CPU miner controls, original VMRX-branded GUI
+          - Local wallet creation, encrypted wallet files, opening and backups
+          - Wallet restore from fresh mnemonic; address identity confirmed in
+            independent Windows and Linux native RPC tests
+          - Balance and transfer history UI, payout address, opt-in two-stage
+            send UI (experimental; NOT tested with funded mainnet transactions)
+          - Native Core + wallet binaries packaged together on both platforms
+
+          ## IMPORTANT — Known limitations
+          - **Actual funded mainnet receive/send and finality have not been verified.**
+          - **Recovery of pre-existing/founder wallets is unverified; a historic
+            seed-to-address mismatch was previously reported.**
+          - No independent wallet security audit, signed installer or
+            hardware-wallet support. Do NOT rely on this wallet for large funds.
+          - Keep your seed OFFLINE and test recovery with a disposable wallet.
+          - Read `WALLET_GUIDE.md` inside the download before using the wallet.
+
+          ## Verification
+          - Native wallet creation and mnemonic recovery verified on Windows/Linux.
+          - Full integrated GUI/package build successful on both systems.
+          - Windows/Linux beta release package contents verified independently.
+          - Main release archives are **byte-identical** to the tested beta
+            files, apart from the downloaded archive filenames.
+          - SHA256SUMS included for both archives.
+
+          Verified integrated CI: https://github.com/ati1993de/vmrx-node-miner/actions/runs/40192038714
+          Verified dual-OS build: https://github.com/ati1993de/vmrx-node-miner/actions/runs/40192038780
+          Corresponding native Core beta: https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.3-wallet-beta.1
+          EOF
+
+      - name: Publish VMRX v0.1.3 as latest main GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$TARGET_TAG" \
+            release/VMRX-Node-Miner-windows-x64-v0.1.3.zip \
+            release/VMRX-Node-Miner-linux-x64-v0.1.3.tar.gz \
+            release/SHA256SUMS \
+            --repo "$GH_REPO" \
+            --target "$GITHUB_SHA" \
+            --latest \
+            --title 'VMRX Node & Miner v0.1.3 — Main Release + Experimental Wallet' \
+            --notes-file release/RELEASE_NOTES.md
+          test "$(gh api "repos/$GH_REPO/releases/latest" --jq '.tag_name')" = "$TARGET_TAG"
+          test "$(gh api "repos/$GH_REPO/releases/tags/$TARGET_TAG" --jq '.prerelease')" = false
+          gh release view "$TARGET_TAG" -R "$GH_REPO"
