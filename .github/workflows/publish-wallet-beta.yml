@@ -15,8 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  GUI_SOURCE_SHA: c9542fe62d191ba531c5d1487c76561e924fe485
-  GUI_BUILD_RUN: '40190683085'
+  GUI_SOURCE_SHA: 7332490769f4c7750b331fbb6a0b2c53368869af
+  GUI_BUILD_RUN: '40191517441'
   CORE_TAG: v0.1.3-wallet-beta.1
   GUI_TAG: v0.1.3-wallet-beta.1
   CORE_WIN_DIGEST: sha256:f4c6dfc60c36fb8095b1c1aee91c4f7d4962cab659f434f78087995f55450313
@@ -222,8 +222,8 @@ jobs:
           Wallet RPC localhost port 29882; daemon RPC 29781; mainnet P2P 29780.
           Mainnet genesis: 405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4
           
-          GUI source: c9542fe62d191ba531c5d1487c76561e924fe485
-          GUI CI build: https://github.com/ati1993de/vmrx-node-miner/actions/runs/40190683085
+          GUI source: 7332490769f4c7750b331fbb6a0b2c53368869af
+          GUI CI build: https://github.com/ati1993de/vmrx-node-miner/actions/runs/40191517441
           Native recovery tests: https://github.com/ati1993de/vmrx-core/actions/runs/40190734788
           Core prerelease: https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.3-wallet-beta.1
           Official site: https://randomx.vargamesh.com/
