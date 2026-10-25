@@ -3,7 +3,7 @@ name: VMRX Node & Miner — integrated Windows Core and Linux GUI
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, fix/vmrx-branded-daemon-and-block1-sync]
     tags: ['v*']
   pull_request:
 
