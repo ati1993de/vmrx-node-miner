@@ -1,8 +1,9 @@
-VMRX Node & Miner v0.1.2-dev – Windows full-node candidate
+VMRX Node & Miner v0.1.2 – Windows full-node candidate
 =======================================================
 
-This is a TEST BUILD, not a verified stable release. The fixed Core must
-synchronize with the original VMRX mainnet past block 1 before publication.
+This bundle contains a native Windows VMRX Core built from a pinned,
+independently reviewed fork commit. Before publication its real P2P tests
+must match the historical VMRX chain through height 1193.
 
 1. Unzip the entire package to a fresh folder (not just the EXE).
 2. Keep core/vmrxd.exe and all supplied runtime DLLs together.
