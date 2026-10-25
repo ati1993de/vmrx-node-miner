@@ -34,7 +34,7 @@ jobs:
         run: |
           test -s assets/vmrx-logo.png
           ! test -f assets/vmrx-draft.png
-          grep -q 'v0.1.2-dev' app.py
+          grep -q 'v0.1.2' app.py
 
       - name: Linux Tk GUI dependencies
         if: runner.os == 'Linux'
@@ -69,7 +69,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ati1993de/vmrx-core
-          ref: 9f9f09bf9e5538044c5c3a0dc450bcb0dbd8a26e
+          ref: f36808895e2bb9b21f5d2bb776f299773e90a693
           path: vmrx-core
           submodules: recursive
           persist-credentials: false
@@ -161,7 +161,7 @@ jobs:
           done
           cp vmrx-core/LICENSE release-bundle/core/CORE-LICENSE.txt
           cp vmrx-core/docs/RELEASE_STATUS.md release-bundle/core/CORE-RELEASE-STATUS.md
-          printf '%s\n' 'VMRX Core source: ati1993de/vmrx-core' 'Commit: 9f9f09bf9e5538044c5c3a0dc450bcb0dbd8a26e' > release-bundle/core/CORE-SOURCE.txt
+          printf '%s\n' 'VMRX Core source: ati1993de/vmrx-core' 'Commit: f36808895e2bb9b21f5d2bb776f299773e90a693' > release-bundle/core/CORE-SOURCE.txt
           test -s release-bundle/core/vmrxd.exe
           test -s release-bundle/core/vmrx.ico
 
