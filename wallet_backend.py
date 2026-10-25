@@ -24,7 +24,7 @@ import requests
 WALLET_PORT = 29882  # VMRX daemon ZMQ reserves 29782 on a default native node.
 ATOMIC_UNITS = 10**12
 _WALLET_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,47}\Z")
-_WALLET_EXES = {"vmrx-wallet-rpc", "vmrx-wallet-rpc.exe", "monero-wallet-rpc", "monero-wallet-rpc.exe"}
+_WALLET_EXES = {"vmrx-wallet-rpc", "vmrx-wallet-rpc.exe"}  # refuse upstream Monero-named wallet engines
 _RPC_METHODS = frozenset({
     "get_address", "get_balance", "get_height", "get_transfers", "refresh",
     "create_wallet", "restore_deterministic_wallet", "open_wallet", "close_wallet",
@@ -83,7 +83,7 @@ def vmrx_amount(value: str) -> int:
 
 def find_wallet_binary() -> str:
     root = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
-    for name in ("vmrx-wallet-rpc.exe", "monero-wallet-rpc.exe", "vmrx-wallet-rpc", "monero-wallet-rpc"):
+    for name in ("vmrx-wallet-rpc.exe", "vmrx-wallet-rpc"):
         candidate = root / "core" / name
         if candidate.is_file() and (os.name == "nt" or os.access(candidate, os.X_OK)):
             return str(candidate)
