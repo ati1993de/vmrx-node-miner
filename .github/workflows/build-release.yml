@@ -62,108 +62,50 @@ jobs:
         shell: pwsh
         run: ./scripts/build-windows.ps1
 
-      # Build VMRX from its OWN source, never a downloaded Monero executable.
-      # Ref is deliberately fixed so the GUI release has auditable core provenance.
-      - name: Checkout actual VMRX Core source and submodules
-        if: runner.os == 'Windows'
-        uses: actions/checkout@v4
-        with:
-          repository: ati1993de/vmrx-core
-          ref: f36808895e2bb9b21f5d2bb776f299773e90a693
-          path: vmrx-core
-          submodules: recursive
-          persist-credentials: false
-
-      - name: Install Windows x64 Core toolchain (MSYS2 MinGW64)
-        if: runner.os == 'Windows'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            base-devel
-            file
-            git
-            make
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-boost
-            mingw-w64-x86_64-openssl
-            mingw-w64-x86_64-zeromq
-            mingw-w64-x86_64-libsodium
-            mingw-w64-x86_64-unbound
-            mingw-w64-x86_64-protobuf
-            mingw-w64-x86_64-pkgconf
-
-      - name: Install pinned MSYS2 HIDAPI/libusb packages from official mirror
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        run: |
-          set -euo pipefail
-          mkdir -p msys2-deps
-          curl --fail --location --retry 3 --output msys2-deps/hidapi.pkg.tar.zst https://mirror.msys2.org/mingw/mingw64/mingw-w64-x86_64-hidapi-0.15.0-2-any.pkg.tar.zst
-          curl --fail --location --retry 3 --output msys2-deps/libusb.pkg.tar.zst https://mirror.msys2.org/mingw/mingw64/mingw-w64-x86_64-libusb-1.0.30-1-any.pkg.tar.zst
-          printf '%s  %s\n' '89fb61549a437d65076a092a367fcb264fc7045ee9ebef48cd81f5a76a5588f8' 'msys2-deps/hidapi.pkg.tar.zst' '124edc26b009678a4c5e759481a364abf63ed7f2f49a53092e8bd0a47c0c0740' 'msys2-deps/libusb.pkg.tar.zst' | sha256sum -c -
-          pacman --noconfirm -U msys2-deps/hidapi.pkg.tar.zst msys2-deps/libusb.pkg.tar.zst
-
-      - name: Verify VMRX fork mainnet constants
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        run: |
-          set -euo pipefail
-          grep -Eq 'CRYPTONOTE_NAME[[:space:]]+"vmrx"' vmrx-core/src/cryptonote_config.h
-          grep -Eq 'DIFFICULTY_TARGET_V2[[:space:]]+120' vmrx-core/src/cryptonote_config.h
-          grep -Eq 'CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW[[:space:]]+60' vmrx-core/src/cryptonote_config.h
-
-      - name: Build official transparent VMRX Windows Core icon
+      # Import the exact Windows Core that already passed independent
+      # Core CI full historical P2P synchronization and has been published.
+      # This avoids silently rebuilding a different daemon for GUI distribution.
+      - name: Import official VMRX Core v0.1.2 Windows release (SHA-256 pinned)
         if: runner.os == 'Windows'
         shell: pwsh
-        working-directory: vmrx-core
         run: |
-          python -m pip install --disable-pip-version-check Pillow
-          python scripts/build_windows_icon.py
-          if (-not (Test-Path 'assets/vmrx.ico')) { throw 'Official VMRX Core icon missing' }
-
-      - name: Compile native Windows VMRX daemon (not Monero)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        working-directory: vmrx-core
-        env:
-          CMAKE_BUILD_PARALLEL_LEVEL: '2'
-        run: |
-          set -euo pipefail
-          make release-static-win64-daemon -j2
-
-      - name: Bundle Windows core executable and required MinGW DLLs
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        run: |
-          set -euo pipefail
-          mkdir -p release-bundle/core
-          binary="$(find vmrx-core/build -type f -name vmrxd.exe -print -quit)"
-          test -n "$binary" && test -s "$binary" || { echo 'VMRX Windows daemon build missing'; exit 1; }
-          file "$binary" | grep -q 'PE32+'
-          objdump -h "$binary" | grep -Eq '[[:space:]]\.rsrc[[:space:]]' || { echo 'VMRX Core PE resources missing'; exit 1; }
-          test -s vmrx-core/assets/vmrx.ico
-          cp "$binary" release-bundle/core/vmrxd.exe
-          cp vmrx-core/assets/vmrx.ico release-bundle/core/vmrx.ico
-          pending=(release-bundle/core/vmrxd.exe)
-          while [ "${#pending[@]}" -gt 0 ]; do
-            current="${pending[0]}"
-            pending=("${pending[@]:1}")
-            while IFS= read -r dll; do
-              [ -n "$dll" ] || continue
-              if [ -f "/mingw64/bin/$dll" ] && [ ! -f "release-bundle/core/$dll" ]; then
-                cp "/mingw64/bin/$dll" "release-bundle/core/$dll"
-                pending+=("release-bundle/core/$dll")
-              fi
-            done < <(objdump -p "$current" 2>/dev/null | sed -n 's/^[[:space:]]*DLL Name:[[:space:]]*//p')
-          done
-          cp vmrx-core/LICENSE release-bundle/core/CORE-LICENSE.txt
-          cp vmrx-core/docs/RELEASE_STATUS.md release-bundle/core/CORE-RELEASE-STATUS.md
-          printf '%s\n' 'VMRX Core source: ati1993de/vmrx-core' 'Commit: f36808895e2bb9b21f5d2bb776f299773e90a693' > release-bundle/core/CORE-SOURCE.txt
-          test -s release-bundle/core/vmrxd.exe
-          test -s release-bundle/core/vmrx.ico
+          $ErrorActionPreference = 'Stop'
+          $uri = 'https://github.com/ati1993de/vmrx-core/releases/download/v0.1.2/VMRX-Core-windows-x86_64-v0.1.2.zip'
+          $archive = Join-Path $PWD 'vmrx-core-v0.1.2.zip'
+          $expected = 'e97d2711f267463fe63aece576a20642eb027f11e6a66837ec675604ceb474b4'
+          Invoke-WebRequest -Uri $uri -OutFile $archive
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "VMRX Core archive SHA256 mismatch: $actual / expected $expected"
+          }
+          $stage = Join-Path $env:RUNNER_TEMP 'verified-vmrx-core-release'
+          Expand-Archive $archive -DestinationPath $stage -Force
+          $nodes = @(Get-ChildItem $stage -Recurse -File -Filter 'vmrxd.exe')
+          if ($nodes.Count -ne 1) { throw "Expected exactly one native VMRX daemon; found $($nodes.Count)" }
+          $coreDir = $nodes[0].Directory.FullName
+          foreach ($name in @('vmrxd.exe','vmrx.ico')) {
+            if (!(Test-Path (Join-Path $coreDir $name) -PathType Leaf)) {
+              throw "Official Core release is missing $name"
+            }
+          }
+          New-Item -ItemType Directory -Force -Path 'release-bundle/core' | Out-Null
+          Copy-Item -Path (Join-Path $coreDir '*') -Destination 'release-bundle/core' -Recurse -Force
+          if (Test-Path 'release-bundle/core/monerod.exe') {
+            throw 'Obsolete monerod.exe detected; refusing old Core'
+          }
+          $version = (& 'release-bundle/core/vmrxd.exe' --version | Out-String)
+          if ($LASTEXITCODE -ne 0 -or $version -notmatch 'VMRX Core v0.1.2') {
+            throw "Official bundled Core version mismatch: $version"
+          }
+          @(
+            'VMRX Core source: ati1993de/vmrx-core',
+            'Commit: f36808895e2bb9b21f5d2bb776f299773e90a693',
+            'Release: v0.1.2',
+            "Official archive SHA256: $expected",
+            'Genesis: 405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4',
+            'P2P mainnet verification: block heights 0, 1, 2, 10, 100, 1193'
+          ) | Set-Content -Path 'release-bundle/core/CORE-SOURCE.txt' -Encoding ascii
+          Write-Host "PASS: imported byte-for-byte verified Core v0.1.2 ($actual) with branding, official icon and DLLs"
 
       - name: Windows mainnet genesis smoke test (must pass to release)
         if: runner.os == 'Windows'
@@ -189,7 +131,7 @@ jobs:
           $passed = $false
           $lastRpcError = ''
           try {
-            Write-Host "VMRX: starting compiled Windows executable from pinned fork source"
+            Write-Host "VMRX: starting official checksum-verified VMRX Core v0.1.2 bundled with GUI"
             Write-Host "Daemon path: $daemon"
             Write-Host "Working dir: $(Split-Path $daemon)"
             $process = Start-Process -FilePath $daemon -ArgumentList $params -WorkingDirectory (Split-Path $daemon) -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
