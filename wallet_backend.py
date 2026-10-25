@@ -20,7 +20,7 @@ import threading
 import urllib.error
 import urllib.request
 
-WALLET_PORT = 29782
+WALLET_PORT = 29882  # VMRX daemon ZMQ reserves 29782 on a default native node.
 ATOMIC_UNITS = 10**12
 _WALLET_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,47}\Z")
 _WALLET_EXES = {"vmrx-wallet-rpc", "vmrx-wallet-rpc.exe", "monero-wallet-rpc", "monero-wallet-rpc.exe"}
