@@ -4,13 +4,13 @@ Mocked RPC tests verify adapter behavior only. They do NOT certify real seed
 restoration, receive, spend, network consensus or wallet-engine binaries.
 """
 from pathlib import Path
-from urllib.request import HTTPPasswordMgrWithDefaultRealm, Request
+import requests
 import json
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from wallet_backend import WalletError, WalletRpc, WalletService, vmrx_amount, wallet_name, verify_vmrx_daemon, VMRX_GENESIS, NativeWalletDigestAuthHandler
+from wallet_backend import WalletError, WalletRpc, WalletService, vmrx_amount, wallet_name, verify_vmrx_daemon, VMRX_GENESIS
 
 
 class JsonResponse:
@@ -26,31 +26,30 @@ class JsonResponse:
 
 class WalletUnitTests(unittest.TestCase):
     def rpc(self, result):
-        client = WalletRpc(29782, "user", "secret")
-        client.opener.open = Mock(return_value=JsonResponse({"jsonrpc": "2.0", "id": "vmrx", "result": result}))
+        client = WalletRpc(29882, "user", "secret")
+        response = Mock()
+        response.status_code = 200
+        response.json.return_value = {"jsonrpc": "2.0", "id": "vmrx", "result": result}
+        client.session.post = Mock(return_value=response)
         return client
 
-    def test_native_digest_algorithm_header_is_unquoted_token(self):
-        password_manager = HTTPPasswordMgrWithDefaultRealm()
-        password_manager.add_password(None, "http://127.0.0.1:29882/json_rpc", "test", "secret")
-        handler = NativeWalletDigestAuthHandler(password_manager)
-        request = Request("http://127.0.0.1:29882/json_rpc", data=b"{}", method="POST")
-        value = handler.get_authorization(request, {"realm": "monero-rpc", "nonce": "nonce",
-                                                    "algorithm": "MD5", "qop": "auth"})
-        self.assertIn("algorithm=MD5", value)
-        self.assertNotIn('algorithm="MD5"', value)
-        self.assertIn("qop=auth", value)
+    def test_requests_digest_client_is_local_and_proxy_free(self):
+        client = WalletRpc(29882, "user", "secret")
+        self.assertFalse(client.session.trust_env)
+        self.assertIsInstance(client.session.auth, requests.auth.HTTPDigestAuth)
+        self.assertEqual(client.url, "http://127.0.0.1:29882/json_rpc")
 
     def test_rpc_only_loopback_and_digest(self):
         client = self.rpc({"address": "E" + "a" * 94})
         self.assertEqual(client.address(), "E" + "a" * 94)
-        req = client.opener.open.call_args.args[0]
-        self.assertEqual(req.full_url, "http://127.0.0.1:29782/json_rpc")
-        self.assertEqual(json.loads(req.data)["method"], "get_address")
+        kwargs = client.session.post.call_args.kwargs
+        self.assertEqual(client.session.post.call_args.args[0], "http://127.0.0.1:29882/json_rpc")
+        self.assertEqual(kwargs["json"]["method"], "get_address")
+        self.assertFalse(kwargs["allow_redirects"])
 
     def test_rpc_does_not_reflect_secret_on_http_failure(self):
         client = self.rpc({})
-        client.opener.open.side_effect = OSError("MY_SUPER_SECRET_SEED should not leak")
+        client.session.post.side_effect = requests.exceptions.ConnectionError("MY_SUPER_SECRET_SEED should not leak")
         with self.assertRaises(WalletError) as caught:
             client.restore("wallet1", "password123456", "word " * 25)
         self.assertNotIn("MY_SUPER_SECRET", str(caught.exception))
@@ -76,7 +75,7 @@ class WalletUnitTests(unittest.TestCase):
         client = self.rpc({})
         client.address = Mock(return_value="E" * 95)
         self.assertEqual(client.create("test1", "pw123456789012"), "E" * 95)
-        req = json.loads(client.opener.open.call_args.args[0].data)
+        req = client.session.post.call_args.kwargs["json"]
         self.assertEqual(req["method"], "create_wallet")
         self.assertEqual(req["params"]["filename"], "test1")
         self.assertEqual(req["params"]["language"], "English")
@@ -85,7 +84,7 @@ class WalletUnitTests(unittest.TestCase):
         client = self.rpc({"address": "E" * 95})
         addr = client.restore("restore1", "pw123456789012", "word " * 25, 0)
         self.assertEqual(addr, "E" * 95)
-        req = json.loads(client.opener.open.call_args.args[0].data)
+        req = client.session.post.call_args.kwargs["json"]
         self.assertEqual(req["method"], "restore_deterministic_wallet")
         self.assertEqual(req["params"]["restore_height"], 0)
         self.assertEqual(len(req["params"]["seed"].split()), 25)
@@ -102,7 +101,7 @@ class WalletUnitTests(unittest.TestCase):
         tx = client.prepare_transfer("E" + "a" * 94, "0.5")
         self.assertEqual(tx["amount"], 500_000_000_000)
         self.assertEqual(tx["fee"], 210)
-        req = json.loads(client.opener.open.call_args.args[0].data)
+        req = client.session.post.call_args.kwargs["json"]
         self.assertEqual(req["method"], "transfer")
         self.assertTrue(req["params"]["do_not_relay"])
         self.assertTrue(req["params"]["get_tx_metadata"])
@@ -110,7 +109,7 @@ class WalletUnitTests(unittest.TestCase):
     def test_no_implicit_broadcast(self):
         client = self.rpc({"tx_metadata": "aabb"})
         client.prepare_transfer("E" + "a" * 94, "1")
-        self.assertEqual(client.opener.open.call_count, 1)
+        self.assertEqual(client.session.post.call_count, 1)
 
     def test_vmrx_genesis_pin_only(self):
         with patch("urllib.request.build_opener") as make:
