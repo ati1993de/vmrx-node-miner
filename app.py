@@ -1,6 +1,6 @@
-"""VMRX Node & Miner v0.1.2 — local-only desktop controller.
+"""VMRX Node & Miner wallet integration beta (based on v0.1.2) — local-only desktop controller.
 
-Requires only Python 3.12 + Tkinter at runtime. No seed phrase or wallet keys.
+Python 3.12 + Tkinter at runtime; VMRX Core wallet-RPC required for wallet operations.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 
 from node_process import find_bundled_daemon, launch_node
 from rpc_client import RpcError, VMRXRpc, valid_mining_address
+from wallet_ui import WalletPanel, URL
 
 ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
 BG, SURFACE, SURFACE2 = "#0c1420", "#172332", "#1d2d3d"
@@ -24,7 +25,7 @@ TEXT, MUTED, CYAN, GREEN, AMBER = "#e8f2fa", "#a2b5c6", "#2ed7dc", "#63dab5", "#
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("VMRX · Node & Miner v0.1.2")
+        self.title("VMRX · Node, Miner & Wallet (beta)")
         self.geometry("920x680")
         self.minsize(820, 590)
         self.configure(bg=BG)
@@ -84,7 +85,7 @@ class App(tk.Tk):
         tk.Label(titles, text="VMRX", fg=TEXT, bg=BG, font=("Segoe UI", 23, "bold")).pack(anchor="w")
         tk.Label(titles, text="VARGAMESH RX  /  RANDOMX MAINNET", fg=CYAN, bg=BG,
                  font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        tk.Label(bar, text="v0.1.2  •  LOCAL RPC", bg=SURFACE, fg=CYAN,
+        tk.Label(bar, text="WALLET BETA  •  LOCAL RPC", bg=SURFACE, fg=CYAN,
                  font=("Segoe UI", 9, "bold"), padx=13, pady=8).pack(side="right")
         self.tabs = ttk.Notebook(self)
         self.tabs.pack(fill="both", expand=True, padx=24)
@@ -95,10 +96,14 @@ class App(tk.Tk):
         self.tabs.add(dashboard, text="Dashboard")
         self.tabs.add(mining, text="CPU Mining")
         self.tabs.add(node, text="Node Control")
+        wallet = ttk.Frame(self.tabs)
+        self.tabs.add(wallet, text="Wallet (Beta)")
         self.tabs.add(about, text="About & Safety")
         self._dashboard(dashboard)
         self._mining(mining)
         self._node(node)
+        self.wallet_panel = WalletPanel(wallet, self.address, self.rpc_port)
+        self.wallet_panel.pack(fill="both", expand=True)
         self._about(about)
         bottom = tk.Frame(self, bg=BG)
         bottom.pack(fill="x", padx=30, pady=12)
@@ -197,13 +202,18 @@ class App(tk.Tk):
             "Genesis: 405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4\n"
             "Founder allocation: 200,000 VMRX in block 1 (PREMINE; mandatory disclosure)\n"
             "Tail emission: 0.6 VMRX per target block; NO strict supply cap\n\n"
-            "This software is NOT independently audited and is not a wallet or exchange integration.\n"
-            "Actual spend and recovery tests, public source/build checks, seed infrastructure, and licensing\n"
-            "review are outstanding. Do not disclose wallet seeds, passwords or key files.\n\n"
-            "The GUI only controls local daemon RPC; it does not manage private keys or payments."
+            "This software is NOT independently audited. Wallet (Beta) is EXPERIMENTAL.\n"
+            "Native VMRX Core wallet-RPC performs all key/seed generation and transaction signing.\n"
+            "Founder seed restoration and real spend/receive verification are NOT yet resolved.\n"
+            "Never deposit significant funds before verifying seed restoration OFFLINE.\n"
+            "Never disclose wallet seeds, passwords or wallet key files.\n\n"
+            "Read the integrated wallet guide and official VMRX website for instructions."
         )
         tk.Label(frame, text=body, justify="left", anchor="nw", bg=SURFACE, fg=TEXT,
                  padx=20, pady=20, wraplength=800, font=("Consolas", 10)).pack(fill="both", expand=True, padx=14, pady=18)
+        import webbrowser
+        ttk.Button(frame, text="Open VMRX website · guides & documentation",
+                   command=lambda: webbrowser.open_new_tab(URL)).pack(anchor="w", padx=14, pady=8)
 
     def _browse_file(self, var):
         value = filedialog.askopenfilename(title="Choose VMRX daemon (vmrxd/monerod)")
@@ -365,6 +375,11 @@ class App(tk.Tk):
     def _close(self):
         if self.child and self.child.poll() is None:
             messagebox.showwarning("VMRX", "Stop the node you launched before closing the GUI.")
+            return
+        try:
+            self.wallet_panel.shutdown()
+        except Exception as exc:
+            messagebox.showerror("VMRX Wallet", f"Wallet engine did not stop safely: {exc}")
             return
         self.destroy()
 
