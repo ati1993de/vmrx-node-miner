@@ -69,7 +69,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ati1993de/vmrx-core
-          ref: 38c5bb658604028d03b90fca7221d0d10ad88dcc
+          ref: 9f9f09bf9e5538044c5c3a0dc450bcb0dbd8a26e
           path: vmrx-core
           submodules: recursive
           persist-credentials: false
@@ -115,6 +115,15 @@ jobs:
           grep -Eq 'DIFFICULTY_TARGET_V2[[:space:]]+120' vmrx-core/src/cryptonote_config.h
           grep -Eq 'CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW[[:space:]]+60' vmrx-core/src/cryptonote_config.h
 
+      - name: Build official transparent VMRX Windows Core icon
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: vmrx-core
+        run: |
+          python -m pip install --disable-pip-version-check Pillow
+          python scripts/build_windows_icon.py
+          if (-not (Test-Path 'assets/vmrx.ico')) { throw 'Official VMRX Core icon missing' }
+
       - name: Compile native Windows VMRX daemon (not Monero)
         if: runner.os == 'Windows'
         shell: msys2 {0}
@@ -134,7 +143,10 @@ jobs:
           binary="$(find vmrx-core/build -type f -name vmrxd.exe -print -quit)"
           test -n "$binary" && test -s "$binary" || { echo 'VMRX Windows daemon build missing'; exit 1; }
           file "$binary" | grep -q 'PE32+'
+          objdump -h "$binary" | grep -Eq '[[:space:]]\\.rsrc[[:space:]]' || { echo 'VMRX Core PE resources missing'; exit 1; }
+          test -s vmrx-core/assets/vmrx.ico
           cp "$binary" release-bundle/core/vmrxd.exe
+          cp vmrx-core/assets/vmrx.ico release-bundle/core/vmrx.ico
           pending=(release-bundle/core/vmrxd.exe)
           while [ "${#pending[@]}" -gt 0 ]; do
             current="${pending[0]}"
@@ -149,8 +161,9 @@ jobs:
           done
           cp vmrx-core/LICENSE release-bundle/core/CORE-LICENSE.txt
           cp vmrx-core/docs/RELEASE_STATUS.md release-bundle/core/CORE-RELEASE-STATUS.md
-          printf '%s\n' 'VMRX Core source: ati1993de/vmrx-core' 'Commit: 38c5bb658604028d03b90fca7221d0d10ad88dcc' > release-bundle/core/CORE-SOURCE.txt
+          printf '%s\n' 'VMRX Core source: ati1993de/vmrx-core' 'Commit: 9f9f09bf9e5538044c5c3a0dc450bcb0dbd8a26e' > release-bundle/core/CORE-SOURCE.txt
           test -s release-bundle/core/vmrxd.exe
+          test -s release-bundle/core/vmrx.ico
 
       - name: Windows mainnet genesis smoke test (must pass to release)
         if: runner.os == 'Windows'
@@ -259,21 +272,35 @@ jobs:
               try {
                 $info = Invoke-RestMethod -Uri "http://127.0.0.1:29881/get_info" -TimeoutSec 3
                 $npeers = [int]$info.incoming_connections_count + [int]$info.outgoing_connections_count
-                if ($info.height -ge 500 -and $info.synchronized -and $npeers -ge 1) {
+                if ($info.height -ge 1194 -and $info.synchronized -and $npeers -ge 1) {
                   $body = @{jsonrpc="2.0";id="1";method="get_block_header_by_height";params=@{height=1}} | ConvertTo-Json -Depth 4
                   $res = Invoke-RestMethod -Uri "http://127.0.0.1:29881/json_rpc" -Method POST -ContentType "application/json" -Body $body -TimeoutSec 5
                   $h = $res.result.block_header
                   if ([string]$h.hash -ne "79030889ec6dd46cf2722defe9523bd38d2379168a27935fa3f1cdfe9397e293") { throw "Wrong network: mainnet block 1 hash $($h.hash)" }
                   if ([string]$h.miner_tx_hash -ne "d7f9691cb7c478fd87957e2210df12205399968e394e1d2a3e58ae56fb7b4645") { throw "Wrong block-1 miner transaction hash $($h.miner_tx_hash)" }
                   if ([decimal]$h.reward -ne [decimal]200035184304979968) { throw "Wrong block-1 reward $($h.reward)" }
-                  Write-Host "PASS: Windows VMRX synchronized to live network tip and accepted exact historical block 1; height=$($info.height), peers=$npeers"
+                  $anchors = @(
+                    @{height=0; hash="405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4"},
+                    @{height=2; hash="85089d1458e2e6f81673ae24dfee40651b375091f9b9c200ecca66b53fda8675"},
+                    @{height=10; hash="ca1253c7cd24f355ecc9b7163764205388281ac0a9ee15c4c2f502df7c0adbba"},
+                    @{height=100; hash="ba4662de0e2e4a16618b5a0fd2ae691297fe3f205491ef2e6b0e6112ce3cf85d"},
+                    @{height=1193; hash="47e0b825d24cf99042fcaf31fb721a2b593d2c3b5e902c6f1e8dd063ed75e591"}
+                  )
+                  foreach ($anchor in $anchors) {
+                    $anchorRequest = @{jsonrpc="2.0";id="anchor";method="get_block_header_by_height";params=@{height=$anchor.height}} | ConvertTo-Json -Depth 5
+                    $response = Invoke-RestMethod -Uri "http://127.0.0.1:29881/json_rpc" -Method POST -ContentType "application/json" -Body $anchorRequest -TimeoutSec 5
+                    if ([string]$response.result.block_header.hash -ne [string]$anchor.hash) {
+                      throw "Wrong VMRX historic chain hash at height $($anchor.height): $($response.result.block_header.hash)"
+                    }
+                  }
+                  Write-Host "PASS: GUI-bundled Windows VMRX Core synced through 1193, all six historical hashes match; height=$($info.height), peers=$npeers"
                   $passed = $true
                   break
                 }
               } catch {
                 $lastError = $_.Exception.Message
                 # A genuine mismatching block is fatal, not an RPC readiness issue.
-                if ($lastError -match "Wrong network|Wrong block-1|Wrong block-1 reward") { throw }
+                if ($lastError -match "Wrong network|Wrong block-1|Wrong block-1 reward|Wrong VMRX historic") { throw }
               }
             }
             if (-not $passed) {
@@ -308,6 +335,8 @@ jobs:
           Copy-Item 'dist/VMRX-Node-Miner.exe' 'release-bundle/VMRX-Node-Miner.exe'
           Copy-Item 'README-WINDOWS-v0.1.2.txt' 'release-bundle/README-WINDOWS.txt'
           if (!(Test-Path 'release-bundle/core/vmrxd.exe')) { throw 'No Windows Core: refusing to release GUI-only archive' }
+          if (!(Test-Path 'release-bundle/core/vmrx.ico')) { throw 'No VMRX Core icon: refusing incomplete archive' }
+          if (!(Test-Path 'release-bundle/core/CORE-SOURCE.txt')) { throw 'No pinned Core provenance' }
           Compress-Archive -Path 'release-bundle/*' -DestinationPath 'release/VMRX-Node-Miner-windows-x64.zip' -CompressionLevel Optimal -Force
           if ((Get-Item 'release/VMRX-Node-Miner-windows-x64.zip').Length -lt 20000000) {
             throw 'Windows package unexpectedly small; refusing incomplete release'
@@ -341,6 +370,8 @@ jobs:
           test -s release/VMRX-Node-Miner-windows-x64.zip
           test -s release/VMRX-Node-Miner-linux-x86_64.tar.gz
           unzip -Z1 release/VMRX-Node-Miner-windows-x64.zip | grep -Eq '^core/vmrxd\.exe$'
+          unzip -Z1 release/VMRX-Node-Miner-windows-x64.zip | grep -Eq '^core/vmrx\.ico$'
+          unzip -Z1 release/VMRX-Node-Miner-windows-x64.zip | grep -Eq '^core/CORE-SOURCE\.txt$'
       - name: Write checksums
         shell: bash
         run: |
