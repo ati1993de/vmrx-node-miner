@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from wallet_backend import WalletError, WalletRpc, WalletService, vmrx_amount, wallet_name
+from wallet_backend import WalletError, WalletRpc, WalletService, vmrx_amount, wallet_name, verify_vmrx_daemon, VMRX_GENESIS
 
 
 class JsonResponse:
@@ -100,6 +100,21 @@ class WalletUnitTests(unittest.TestCase):
         client.prepare_transfer("E" + "a" * 94, "1")
         self.assertEqual(client.opener.open.call_count, 1)
 
+    def test_vmrx_genesis_pin_only(self):
+        with patch("urllib.request.build_opener") as make:
+            make.return_value.open.return_value = JsonResponse({
+                "result": {"block_header": {"hash": VMRX_GENESIS}}
+            })
+            verify_vmrx_daemon(29781)
+            request = make.return_value.open.call_args.args[0]
+            self.assertEqual(request.full_url, "http://127.0.0.1:29781/json_rpc")
+        with patch("urllib.request.build_opener") as make:
+            make.return_value.open.return_value = JsonResponse({
+                "result": {"block_header": {"hash": "0" * 64}}
+            })
+            with self.assertRaises(WalletError):
+                verify_vmrx_daemon(29781)
+
     def test_backup_copies_wallet_and_keys_without_overwrite(self):
         with tempfile.TemporaryDirectory() as d:
             original = Path(d, "original")
@@ -125,10 +140,11 @@ class WalletUnitTests(unittest.TestCase):
             exe = Path(d, "vmrx-wallet-rpc")
             exe.write_bytes(b"test-placeholder")
             exe.chmod(0o700)
-            with patch("subprocess.Popen") as popen:
+            with patch("wallet_backend.verify_vmrx_daemon") as verify, patch("subprocess.Popen") as popen:
                 popen.return_value.pid = 1234
                 popen.return_value.poll.return_value = None
                 service.start(str(exe), str(Path(d, "wallets")), 29781)
+                verify.assert_called_once_with(29781)
                 argv = popen.call_args.args[0]
                 self.assertEqual(argv[argv.index("--rpc-bind-ip") + 1], "127.0.0.1")
                 self.assertEqual(argv[argv.index("--daemon-address") + 1], "127.0.0.1:29781")
