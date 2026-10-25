@@ -19,6 +19,7 @@ import sys
 import threading
 import urllib.error
 import urllib.request
+import requests
 
 WALLET_PORT = 29882  # VMRX daemon ZMQ reserves 29782 on a default native node.
 ATOMIC_UNITS = 10**12
@@ -89,21 +90,6 @@ def find_wallet_binary() -> str:
     return ""
 
 
-class NativeWalletDigestAuthHandler(urllib.request.HTTPDigestAuthHandler):
-    """The native VMRX/Monero-derived server expects unquoted Digest algorithm.
-
-    urllib quotes algorithm=\"MD5\" by default, which its strict token parser
-    rejects (HTTP 401) even for valid username/password and response hashes.
-    """
-
-    def get_authorization(self, req, chal):
-        result = super().get_authorization(req, chal)
-        if result is not None:
-            result = result.replace('algorithm=\"MD5\"', 'algorithm=MD5').replace(
-                'algorithm=\"MD5-sess\"', 'algorithm=MD5-sess')
-        return result
-
-
 class WalletRpc:
     """Authenticated JSON-RPC over localhost only; no remote wallet RPC option."""
 
@@ -111,25 +97,28 @@ class WalletRpc:
         if not 1024 <= int(port) <= 65535:
             raise WalletError("Invalid local wallet-RPC port")
         self.url = f"http://127.0.0.1:{int(port)}/json_rpc"
-        auth = urllib.request.HTTPPasswordMgrWithDefaultRealm()
-        auth.add_password(None, self.url, username, password)
-        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NativeWalletDigestAuthHandler(auth))
+        # requests HTTPDigestAuth interoperates with native Monero-derived RPC.
+        # urllib's DigestAuthHandler was proven to receive HTTP 401 on both
+        # Windows and Linux against the identical daemon; curl/requests pass.
+        self.session = requests.Session()
+        self.session.trust_env = False  # no system proxies, cookies, or net redirects
+        self.session.auth = requests.auth.HTTPDigestAuth(username, password)
         self.timeout = timeout
 
     def call(self, method: str, params: dict | None = None) -> dict:
         if method not in _RPC_METHODS:
             raise WalletError("Unsupported wallet-RPC method")
-        req = urllib.request.Request(
-            self.url,
-            data=json.dumps({"jsonrpc": "2.0", "id": "vmrx", "method": method, "params": params or {}}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
         try:
-            with self.opener.open(req, timeout=self.timeout) as response:
-                payload = json.load(response)
-        except (OSError, ValueError, urllib.error.URLError) as error:
-            # Never expose request contents, wallet passwords or seeds via error strings.
+            response = self.session.post(
+                self.url, json={"jsonrpc": "2.0", "id": "vmrx", "method": method,
+                                "params": params or {}},
+                timeout=self.timeout, allow_redirects=False,
+            )
+            if response.status_code != 200:
+                raise WalletError(f"Wallet RPC {method} failed (HTTP {response.status_code}).")
+            payload = response.json()
+        except (requests.RequestException, ValueError):
+            # Never expose request contents, credentials, or recovery words.
             raise WalletError(f"Wallet RPC {method} failed (transport/authentication).") from None
         if not isinstance(payload, dict):
             raise WalletError(f"Wallet RPC {method} returned malformed data")
