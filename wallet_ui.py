@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import queue
 import threading
+from decimal import Decimal
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 import webbrowser
@@ -18,7 +19,7 @@ BG, SURFACE, TEXT, MUTED, CYAN = "#0c1420", "#172332", "#e8f2fa", "#a2b5c6", "#2
 
 
 def coins(value):
-    return f"{int(value) / ATOMIC_UNITS:.12f}".rstrip("0").rstrip(".") or "0"
+    return f"{Decimal(int(value)) / ATOMIC_UNITS:.12f}".rstrip("0").rstrip(".") or "0"
 
 
 class WalletPanel(ttk.Frame):
@@ -104,8 +105,10 @@ class WalletPanel(ttk.Frame):
         ttk.Entry(send, textvariable=self.to_address).grid(row=0, column=1, sticky="ew", padx=8, pady=4)
         tk.Label(send, text="Amount (VMRX)", bg=BG, fg=MUTED).grid(row=1, column=0, sticky="w")
         ttk.Entry(send, textvariable=self.to_amount, width=19).grid(row=1, column=1, sticky="w", padx=8, pady=4)
-        ttk.Checkbutton(send, text="I independently tested seed restoration, understand the risks, and accept an EXPERIMENTAL send",
-                        variable=self.allow_send).grid(row=2, column=0, columnspan=2, sticky="w", pady=5)
+        tk.Checkbutton(send, text="I independently tested seed restoration, understand the risks, and accept an EXPERIMENTAL send",
+                       variable=self.allow_send, bg=BG, fg=TEXT, activebackground=BG,
+                       activeforeground=TEXT, selectcolor=SURFACE, wraplength=740,
+                       justify="left").grid(row=2, column=0, columnspan=2, sticky="w", pady=5)
         ttk.Button(send, text="Prepare, inspect fee and confirm broadcast", command=self.send).grid(
             row=3, column=1, sticky="w", padx=8)
         send.columnconfigure(1, weight=1)
@@ -388,7 +391,7 @@ class WalletPanel(ttk.Frame):
             return
         recipient, amount = self.to_address.get().strip(), self.to_amount.get().strip()
         if not messagebox.askyesno("Experimental VMRX send", "Seed recovery and real spending are not independently verified. "
-                                   "Do NOT use significant funds. Prepare an unsigned-to-network transaction locally?"):
+                                   "Do NOT use significant funds. Prepare a locally signed but NOT broadcast transaction?"):
             return
         self._job("prepare", lambda: self._require().prepare_transfer(recipient, amount))
 
