@@ -148,6 +148,7 @@ class WalletUnitTests(unittest.TestCase):
                 argv = popen.call_args.args[0]
                 self.assertEqual(argv[argv.index("--rpc-bind-ip") + 1], "127.0.0.1")
                 self.assertEqual(argv[argv.index("--daemon-address") + 1], "127.0.0.1:29781")
+                self.assertEqual(argv[argv.index("--rpc-bind-port") + 1], "29882")
                 self.assertIn("--rpc-login", argv)
                 self.assertNotIn("--disable-rpc-login", argv)
                 self.assertFalse(popen.call_args.kwargs["shell"])
