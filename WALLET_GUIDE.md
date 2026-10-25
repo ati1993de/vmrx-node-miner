@@ -1,6 +1,6 @@
 # VMRX Wallet (experimental development branch)
 
-> **NOT a stable wallet release.** This GUI requires a **VMRX Core-built wallet RPC executable**; official v0.1.2 Core archives currently bundle a daemon only. Native wallet-RPC build, live wallet integration, deterministic seed recovery and actual spend/receive testing are not yet complete. Do not put valuable coins into an untested wallet.
+> **NOT a stable wallet release.** This GUI requires a **VMRX Core-built wallet RPC executable**; official v0.1.3 Core archives currently bundle a daemon only. Native wallet-RPC build, live wallet integration, deterministic seed recovery and actual spend/receive testing are not yet complete. Do not put valuable coins into an untested wallet.
 
 Official project instructions: https://randomx.vargamesh.com/
 
@@ -17,7 +17,7 @@ Official project instructions: https://randomx.vargamesh.com/
 
 ## Installation for developers
 
-1. Use the existing VMRX Core v0.1.2 native daemon (or later verified chain-compatible Core). Do **not** substitute upstream Monero wallet-RPC or daemon binaries.
+1. Use the existing VMRX Core v0.1.3 native daemon (or later verified chain-compatible Core). Do **not** substitute upstream Monero wallet-RPC or daemon binaries.
 2. Build the matching **VMRX Core wallet RPC** from its source (target `wallet_rpc_server`) for the OS, keeping every required dependency DLL beside it. Note: this target has not yet passed the required integrated release build and smoke tests.
 3. Launch `app.py` on a desktop with Tkinter. In Node Control, launch the VMRX-only daemon using a fresh VMRX data directory. Verify live peers and real chain sync.
 4. On Wallet (Beta), choose the locally compiled VMRX wallet-RPC executable and click Start engine. The wallet files default to `~/.vmrx-node/wallets`, distinct from any Monero/VMESH wallet directory.
