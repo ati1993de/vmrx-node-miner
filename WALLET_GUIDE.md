@@ -6,7 +6,7 @@ Official project instructions: https://randomx.vargamesh.com/
 
 ## Scope of the Wallet (Beta) tab
 
-- Launches a **user-selected local VMRX Core** `monero-wallet-rpc` / `vmrx-wallet-rpc` engine, binds only to **127.0.0.1:29782**, and uses generated HTTP Digest RPC credentials.
+- Launches a **user-selected local VMRX Core** `monero-wallet-rpc` / `vmrx-wallet-rpc` engine, binds only to **127.0.0.1:29882**, and uses generated HTTP Digest RPC credentials.
 - Before wallet-RPC is launched, compares the connected **VMRX Core daemon's genesis hash** with `405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4`. It refuses other chains.
 - Creates new wallets (native wallet-RPC `create_wallet`) with encrypted keys, opens existing encrypted wallets, restores deterministic wallets through **native Core** (`restore_deterministic_wallet`, with optional original-address check and selectable restore height), closes and stores them.
 - Displays the primary receiving address, available/locked balances, sync height and transfer history; can populate the CPU mining receiving-address field.
