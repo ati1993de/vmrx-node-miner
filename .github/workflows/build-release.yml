@@ -143,7 +143,7 @@ jobs:
           binary="$(find vmrx-core/build -type f -name vmrxd.exe -print -quit)"
           test -n "$binary" && test -s "$binary" || { echo 'VMRX Windows daemon build missing'; exit 1; }
           file "$binary" | grep -q 'PE32+'
-          objdump -h "$binary" | grep -Eq '[[:space:]]\\.rsrc[[:space:]]' || { echo 'VMRX Core PE resources missing'; exit 1; }
+          objdump -h "$binary" | grep -Eq '[[:space:]]\.rsrc[[:space:]]' || { echo 'VMRX Core PE resources missing'; exit 1; }
           test -s vmrx-core/assets/vmrx.ico
           cp "$binary" release-bundle/core/vmrxd.exe
           cp vmrx-core/assets/vmrx.ico release-bundle/core/vmrx.ico
