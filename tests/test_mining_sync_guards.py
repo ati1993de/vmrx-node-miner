@@ -20,11 +20,13 @@ class MiningPeerGateTests(unittest.TestCase):
         client = MagicMock()
         client.info.return_value = info
         with (patch.object(app, "valid_mining_address", return_value=True),
-              patch.object(app.messagebox, "askyesno", return_value=True),
-              patch.object(app.VMRXRpc, return_value=client)):
+              patch.object(app.messagebox, "askyesno", return_value=True)):
             app.App.start_mining(view)
         self.assertEqual(len(pending), 1)
-        return pending[0], client
+        def run_under_mock():
+            with patch.object(app, "VMRXRpc", return_value=client):
+                return pending[0]()
+        return run_under_mock, client
 
     def test_zero_peers_mining_is_denied_even_if_flag_says_synced(self):
         job, client = self.make_job({
