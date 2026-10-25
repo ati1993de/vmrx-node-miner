@@ -342,6 +342,37 @@ jobs:
             throw 'Windows package unexpectedly small; refusing incomplete release'
           }
 
+      - name: Smoke-test the actual extracted Windows ZIP including GUI startup and Core files
+        if: runner.os == 'Windows'
+        shell: pwsh
+        timeout-minutes: 4
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archive = 'release/VMRX-Node-Miner-windows-x64.zip'
+          $dest = Join-Path $env:RUNNER_TEMP 'vmrx-v012-unpacked-test'
+          Expand-Archive -Path $archive -DestinationPath $dest -Force
+          $gui = Join-Path $dest 'VMRX-Node-Miner.exe'
+          $core = Join-Path $dest 'core/vmrxd.exe'
+          $ico = Join-Path $dest 'core/vmrx.ico'
+          foreach ($path in @($gui, $core, $ico)) {
+            if (!(Test-Path $path -PathType Leaf)) { throw "Incomplete extracted Windows release ZIP: $path" }
+          }
+          $reported = (& $core --version | Out-String)
+          if ($reported -notmatch 'VMRX Core v0.1.2') { throw "Bundled Core reports wrong version: $reported" }
+          # The GUI is a windowed executable: a short live process test catches
+          # missing DLL/assets/PyInstaller runtime errors. This is not a pixel UI
+          # audit or evidence of real mining payouts.
+          $p = $null
+          try {
+            $p = Start-Process -FilePath $gui -WorkingDirectory $dest -PassThru
+            Start-Sleep -Seconds 7
+            $p.Refresh()
+            if ($p.HasExited) { throw "GUI terminated on startup with exit code $($p.ExitCode)" }
+            Write-Host "PASS: Extracted VMRX GUI executable starts; bundled vmrxd.exe reports v0.1.2 with native ICO"
+          } finally {
+            if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+          }
+
       - name: Upload platform preview packages
         uses: actions/upload-artifact@v4
         with:
