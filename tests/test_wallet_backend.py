@@ -127,7 +127,7 @@ class WalletUnitTests(unittest.TestCase):
             service.child = Mock()
             service.child.poll.return_value = None
             service.client = Mock()
-            self.assertEqual(Path(service.backup("alice", str(backup))), backup)
+            self.assertEqual(Path(service.backup("alice", str(backup))).resolve(), backup.resolve())
             self.assertEqual((backup / "alice.keys").read_bytes(), b"encrypted-private-key-file")
             service.client.store.assert_called_once()
             with self.assertRaises(WalletError):
