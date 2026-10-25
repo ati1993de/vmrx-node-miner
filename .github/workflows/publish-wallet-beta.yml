@@ -204,10 +204,14 @@ jobs:
           fi
           test -s publish/VMRX-Node-Miner-wallet-beta-windows-x64.zip
           test -s publish/VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz
-          unzip -Z1 publish/VMRX-Node-Miner-wallet-beta-windows-x64.zip | grep -Fxq 'core/vmrx-wallet-rpc.exe'
-          unzip -Z1 publish/VMRX-Node-Miner-wallet-beta-windows-x64.zip | grep -Fxq 'VMRX-Node-Miner.exe'
-          tar -tzf publish/VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz | grep -Fxq './core/vmrx-wallet-rpc'
-          tar -tzf publish/VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz | grep -Fxq './VMRX-Node-Miner'
+          # Do not pipe archive listing directly into grep -q under pipefail:
+          # early grep exit causes tar/unzip to fail with SIGPIPE (exit 2).
+          unzip -Z1 publish/VMRX-Node-Miner-wallet-beta-windows-x64.zip > /tmp/vmrx-win-manifest.txt
+          tar -tzf publish/VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz > /tmp/vmrx-linux-manifest.txt
+          grep -Fxq 'core/vmrx-wallet-rpc.exe' /tmp/vmrx-win-manifest.txt
+          grep -Fxq 'VMRX-Node-Miner.exe' /tmp/vmrx-win-manifest.txt
+          grep -Fxq './core/vmrx-wallet-rpc' /tmp/vmrx-linux-manifest.txt
+          grep -Fxq './VMRX-Node-Miner' /tmp/vmrx-linux-manifest.txt
           (cd publish && sha256sum VMRX-Node-Miner-wallet-beta-* > SHA256SUMS && sha256sum -c SHA256SUMS)
       - name: Compose transparent beta release notes
         run: |
