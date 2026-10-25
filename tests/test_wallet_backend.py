@@ -4,12 +4,13 @@ Mocked RPC tests verify adapter behavior only. They do NOT certify real seed
 restoration, receive, spend, network consensus or wallet-engine binaries.
 """
 from pathlib import Path
+from urllib.request import HTTPPasswordMgrWithDefaultRealm, Request
 import json
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from wallet_backend import WalletError, WalletRpc, WalletService, vmrx_amount, wallet_name, verify_vmrx_daemon, VMRX_GENESIS
+from wallet_backend import WalletError, WalletRpc, WalletService, vmrx_amount, wallet_name, verify_vmrx_daemon, VMRX_GENESIS, NativeWalletDigestAuthHandler
 
 
 class JsonResponse:
@@ -28,6 +29,17 @@ class WalletUnitTests(unittest.TestCase):
         client = WalletRpc(29782, "user", "secret")
         client.opener.open = Mock(return_value=JsonResponse({"jsonrpc": "2.0", "id": "vmrx", "result": result}))
         return client
+
+    def test_native_digest_algorithm_header_is_unquoted_token(self):
+        password_manager = HTTPPasswordMgrWithDefaultRealm()
+        password_manager.add_password(None, "http://127.0.0.1:29882/json_rpc", "test", "secret")
+        handler = NativeWalletDigestAuthHandler(password_manager)
+        request = Request("http://127.0.0.1:29882/json_rpc", data=b"{}", method="POST")
+        value = handler.get_authorization(request, {"realm": "monero-rpc", "nonce": "nonce",
+                                                    "algorithm": "MD5", "qop": "auth"})
+        self.assertIn("algorithm=MD5", value)
+        self.assertNotIn('algorithm="MD5"', value)
+        self.assertIn("qop=auth", value)
 
     def test_rpc_only_loopback_and_digest(self):
         client = self.rpc({"address": "E" + "a" * 94})
