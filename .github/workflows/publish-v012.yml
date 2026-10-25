@@ -20,7 +20,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ati1993de/vmrx-node-miner
-      VMRX_GUI_SOURCE_SHA: e297aceeee4783ab60960e25bfae7fa511725b1f
+      VMRX_GUI_SOURCE_SHA: a395f8f1dec76a202deb24ce9c05eadb47e60e1a
       VMRX_CORE_SOURCE_SHA: f36808895e2bb9b21f5d2bb776f299773e90a693
     steps:
       - uses: actions/checkout@v4
