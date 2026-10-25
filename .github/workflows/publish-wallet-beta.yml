@@ -112,8 +112,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Install Linux Tk/X11 desktop smoke dependencies
-        run: sudo apt-get update && sudo apt-get install -y xvfb python3-tk tk-dev libx11-6
+      - name: Install Linux Tk/X11 and fork-native VMRX wallet runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb python3-tk tk-dev libx11-6 \
+            libboost-all-dev libssl3t64 libzmq5 libsodium23 libunbound8 libhidapi-libusb0
+
       - name: Verify source, download Linux GUI and fork-native Core
         shell: bash
         run: |
@@ -135,6 +139,13 @@ jobs:
           test -x stage/VMRX-Node-Miner
           test -x stage/core/vmrxd
           test -x stage/core/vmrx-wallet-rpc
+          echo '=== Required shared libraries for native VMRX binaries ==='
+          ldd stage/core/vmrxd
+          ldd stage/core/vmrx-wallet-rpc
+          if ldd stage/core/vmrxd | grep -q 'not found' || ldd stage/core/vmrx-wallet-rpc | grep -q 'not found'; then
+            echo 'VMRX Core runtime shared-library dependency unresolved'
+            exit 1
+          fi
           stage/core/vmrxd --version | grep -q 'VMRX Core v0.1.3'
           stage/core/vmrx-wallet-rpc --version >/dev/null
           cat > stage/README-WALLET-BETA.txt <<'EOF'
