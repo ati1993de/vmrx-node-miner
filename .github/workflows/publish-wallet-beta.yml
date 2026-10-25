@@ -1,0 +1,246 @@
+name: Validate integrated VMRX Node & Miner Wallet Beta and publish a prerelease
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-wallet-beta.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: vmrx-integrated-wallet-beta-release
+  cancel-in-progress: false
+
+env:
+  GUI_SOURCE_SHA: c9542fe62d191ba531c5d1487c76561e924fe485
+  GUI_BUILD_RUN: '40190683085'
+  CORE_TAG: v0.1.3-wallet-beta.1
+  GUI_TAG: v0.1.3-wallet-beta.1
+  CORE_WIN_DIGEST: sha256:f4c6dfc60c36fb8095b1c1aee91c4f7d4962cab659f434f78087995f55450313
+  CORE_LINUX_DIGEST: sha256:32666fc5a086dac37ae8da2a234153045683ea95ded11dfa59ba079004154e38
+
+jobs:
+  windows-wallet-zip:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2022
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify provenance of GUI build and native Core prerelease
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $gui = gh api "repos/ati1993de/vmrx-node-miner/actions/runs/$env:GUI_BUILD_RUN" --jq '.head_sha'
+          if ($LASTEXITCODE -ne 0 -or "$gui" -ne $env:GUI_SOURCE_SHA) { throw 'Wrong GUI source commit' }
+          $state = gh api "repos/ati1993de/vmrx-node-miner/actions/runs/$env:GUI_BUILD_RUN" --jq '.conclusion'
+          if ($state -ne 'success') { throw 'GUI Windows/Linux build has not passed' }
+          $hash = gh api "repos/ati1993de/vmrx-core/releases/tags/$env:CORE_TAG" --jq '.assets[] | select(.name=="VMRX-Core-wallet-beta-windows-x64.zip") | .digest'
+          if ($hash -ne $env:CORE_WIN_DIGEST) { throw "Native Core Windows release SHA256 is not pinned: $hash" }
+      - name: Download tested Windows GUI and native wallet Core
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path incoming/gui,incoming/core | Out-Null
+          gh run download $env:GUI_BUILD_RUN -R ati1993de/vmrx-node-miner -n vmrx-gui-Windows -D incoming/gui
+          if ($LASTEXITCODE -ne 0) { throw 'Verified GUI artifact download failed' }
+          gh release download $env:CORE_TAG -R ati1993de/vmrx-core -p 'VMRX-Core-wallet-beta-windows-x64.zip' -D incoming/core
+          if ($LASTEXITCODE -ne 0) { throw 'Verified native Core download failed' }
+          $actual = (Get-FileHash 'incoming/core/VMRX-Core-wallet-beta-windows-x64.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ("sha256:$actual" -ne $env:CORE_WIN_DIGEST) { throw 'Native wallet Core ZIP checksum mismatch' }
+      - name: Assemble and smoke-test real portable Windows wallet EXE bundle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Expand-Archive 'incoming/gui/VMRX-Node-Miner-windows-x64.zip' -DestinationPath 'stage' -Force
+          Expand-Archive 'incoming/core/VMRX-Core-wallet-beta-windows-x64.zip' -DestinationPath 'wallet-native' -Force
+          if (!(Test-Path 'wallet-native/core/vmrx-wallet-rpc.exe')) { throw 'No native VMRX Wallet engine in verified Core' }
+          if (Test-Path 'stage/core') { Remove-Item 'stage/core' -Recurse -Force }
+          Copy-Item 'wallet-native/core' 'stage/core' -Recurse -Force
+          Copy-Item WALLET_GUIDE.md 'stage/WALLET_GUIDE.md' -Force
+          Copy-Item 'wallet-native/LICENSE' 'stage/LICENSE-CORE.txt' -Force
+          if (Test-Path 'stage/README-WINDOWS.txt') { Move-Item 'stage/README-WINDOWS.txt' 'stage/README-WINDOWS-OLD-v012.txt' -Force }
+          @(
+            'VMRX Node & Miner Wallet Beta 1 - Portable Windows x64'
+            'Start VMRX-Node-Miner.exe, open Wallet (Beta), sync your local node.'
+            'The native core/vmrx-wallet-rpc.exe is bundled and auto-detected.'
+            'Read WALLET_GUIDE.md BEFORE making a wallet or receiving coins.'
+            'Never expose wallet RPC externally. Keep seed phrases OFFLINE.'
+            'NATIVE CREATE + ENCRYPTED FILE + REOPEN + RESTORE: Windows/Linux PASS.'
+            'NOT VALIDATED: real funded transaction, founder seed restoration or audit.'
+            'NO significant funds: this is an experimental PRE-RELEASE only.'
+          ) | Set-Content 'stage/README-WALLET-BETA.txt'
+          foreach ($f in @('VMRX-Node-Miner.exe','core/vmrxd.exe','core/vmrx-wallet-rpc.exe','WALLET_GUIDE.md','LICENSE-CORE.txt')) {
+            if (!(Test-Path "stage/$f" -PathType Leaf)) { throw "Incomplete release archive: $f" }
+          }
+          $nodeVersion = (& 'stage/core/vmrxd.exe' --version | Out-String)
+          if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch 'VMRX Core v0.1.3') { throw "Wrong native VMRX Core in GUI: $nodeVersion" }
+          $walletVersion = (& 'stage/core/vmrx-wallet-rpc.exe' --version | Out-String)
+          if ($LASTEXITCODE -ne 0) { throw "Native VMRX wallet engine failed to launch: $walletVersion" }
+          $p = Start-Process -FilePath (Resolve-Path 'stage/VMRX-Node-Miner.exe') -WorkingDirectory (Resolve-Path 'stage') -PassThru
+          try {
+            Start-Sleep -Seconds 7
+            $p.Refresh()
+            if ($p.HasExited) { throw "Packaged GUI exited immediately with code $($p.ExitCode)" }
+            Write-Host 'PASS: Windows GUI EXE starts with bundled native VMRX wallet and v0.1.3 node'
+          } finally {
+            if (!$p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+          }
+          New-Item -ItemType Directory -Force -Path publish | Out-Null
+          Compress-Archive -Path 'stage/*' -DestinationPath 'publish/VMRX-Node-Miner-wallet-beta-windows-x64.zip' -CompressionLevel Optimal
+          if ((Get-Item 'publish/VMRX-Node-Miner-wallet-beta-windows-x64.zip').Length -lt 30000000) { throw 'Windows wallet package too small' }
+      - name: Upload verified integrated Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-vmrx-wallet-beta-windows
+          path: publish/VMRX-Node-Miner-wallet-beta-windows-x64.zip
+          if-no-files-found: error
+
+  linux-wallet-tar:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install Linux Tk/X11 desktop smoke dependencies
+        run: sudo apt-get update && sudo apt-get install -y xvfb python3-tk tk-dev libx11-6
+      - name: Verify source, download Linux GUI and fork-native Core
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/ati1993de/vmrx-node-miner/actions/runs/$GUI_BUILD_RUN" --jq '.head_sha')" = "$GUI_SOURCE_SHA"
+          test "$(gh api "repos/ati1993de/vmrx-node-miner/actions/runs/$GUI_BUILD_RUN" --jq '.conclusion')" = success
+          test "$(gh api "repos/ati1993de/vmrx-core/releases/tags/$CORE_TAG" --jq '.assets[] | select(.name=="VMRX-Core-wallet-beta-linux-x64.tar.gz") | .digest')" = "$CORE_LINUX_DIGEST"
+          mkdir -p incoming/gui incoming/core stage publish
+          gh run download "$GUI_BUILD_RUN" -R ati1993de/vmrx-node-miner -n vmrx-gui-Linux -D incoming/gui
+          gh release download "$CORE_TAG" -R ati1993de/vmrx-core -p 'VMRX-Core-wallet-beta-linux-x64.tar.gz' -D incoming/core
+          test "sha256:$(sha256sum incoming/core/VMRX-Core-wallet-beta-linux-x64.tar.gz | cut -d' ' -f1)" = "$CORE_LINUX_DIGEST"
+      - name: Build and live-smoke actual Linux GUI with native Core wallet
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -xzf incoming/gui/VMRX-Node-Miner-linux-x86_64.tar.gz -C stage
+          tar -xzf incoming/core/VMRX-Core-wallet-beta-linux-x64.tar.gz -C stage
+          cp WALLET_GUIDE.md stage/WALLET_GUIDE.md
+          test -x stage/VMRX-Node-Miner
+          test -x stage/core/vmrxd
+          test -x stage/core/vmrx-wallet-rpc
+          stage/core/vmrxd --version | grep -q 'VMRX Core v0.1.3'
+          stage/core/vmrx-wallet-rpc --version >/dev/null
+          cat > stage/README-WALLET-BETA.txt <<'EOF'
+          VMRX Node & Miner Wallet Beta 1 - Linux desktop x64
+          Start ./VMRX-Node-Miner in a graphical desktop session.
+          The VMRX native wallet RPC and daemon are bundled under core/.
+          Read WALLET_GUIDE.md; keep mnemonic completely OFFLINE.
+          Real funded receive/send, old founder seed restoration and external
+          security audit are NOT verified. Do not deposit significant funds.
+          EOF
+          (
+            cd stage
+            xvfb-run -a ./VMRX-Node-Miner >/tmp/vmrx-wallet-beta-gui.log 2>&1 &
+            pid=$!
+            sleep 7
+            if ! kill -0 "$pid" 2>/dev/null; then
+              cat /tmp/vmrx-wallet-beta-gui.log
+              echo 'Linux wallet GUI exited early'
+              exit 1
+            fi
+            kill "$pid" || true
+            wait "$pid" || true
+          )
+          tar -czf publish/VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz -C stage .
+          test -s publish/VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz
+      - name: Upload verified integrated Linux desktop wallet package
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-vmrx-wallet-beta-linux
+          path: publish/VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: [windows-wallet-zip, linux-wallet-tar]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: verified-vmrx-wallet-beta-*
+          path: publish
+          merge-multiple: true
+      - name: Require chain-of-custody and complete Windows/Linux package contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/ati1993de/vmrx-node-miner/compare/$GUI_SOURCE_SHA...${GITHUB_SHA}" --jq '.files[].filename' > /tmp/changed-after-tested-gui.txt
+          if grep -E '^(app.py|wallet_backend.py|wallet_ui.py|node_process.py|rpc_client.py|requirements-build.txt|scripts/)' /tmp/changed-after-tested-gui.txt; then
+            echo 'GUI sources changed since tested build: refuse to publish stale binary'
+            exit 1
+          fi
+          test -s publish/VMRX-Node-Miner-wallet-beta-windows-x64.zip
+          test -s publish/VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz
+          unzip -Z1 publish/VMRX-Node-Miner-wallet-beta-windows-x64.zip | grep -Fxq 'core/vmrx-wallet-rpc.exe'
+          unzip -Z1 publish/VMRX-Node-Miner-wallet-beta-windows-x64.zip | grep -Fxq 'VMRX-Node-Miner.exe'
+          tar -tzf publish/VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz | grep -Fxq './core/vmrx-wallet-rpc'
+          tar -tzf publish/VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz | grep -Fxq './VMRX-Node-Miner'
+          (cd publish && sha256sum VMRX-Node-Miner-wallet-beta-* > SHA256SUMS && sha256sum -c SHA256SUMS)
+      - name: Compose transparent beta release notes
+        run: |
+          cat > publish/RELEASE_NOTES.md <<'EOF'
+          ## VMRX Node & Miner + Wallet Beta 1 (Windows/Linux)
+          
+          Complete portable GUI with new Wallet (Beta) tab and matching
+          fork-native VMRX Core v0.1.3 daemon + local wallet RPC engine.
+          
+          Features: password-encrypted wallet creation, offline mnemonic backup,
+          restore from seed with identity check, address and balance, history,
+          file backup, mining payout address and two-step experimental send.
+          Windows and Linux desktop UI smoke-tested in isolated Actions runners.
+          Native encrypted create/open/recovery verified independently on both OS.
+          
+          Important risks: This is a public BETA, not a security-audited stable wallet.
+          Historic founder seed restoration and transfers with real balances have
+          NOT been established. A seed mismatch with an older founder wallet has
+          previously been reported. Keep significant balances away from this
+          experimental wallet; write recovery words offline, never submit them
+          to websites, and first restore them in a separate test wallet.
+          
+          Wallet RPC localhost port 29882; daemon RPC 29781; mainnet P2P 29780.
+          Mainnet genesis: 405baab8805904ffb7d3643a5004c43b45fc3f5f4c97e712ba4c078a384139d4
+          
+          GUI source: c9542fe62d191ba531c5d1487c76561e924fe485
+          GUI CI build: https://github.com/ati1993de/vmrx-node-miner/actions/runs/40190683085
+          Native recovery tests: https://github.com/ati1993de/vmrx-core/actions/runs/40190734788
+          Core prerelease: https://github.com/ati1993de/vmrx-core/releases/tag/v0.1.3-wallet-beta.1
+          Official site: https://randomx.vargamesh.com/
+          EOF
+      - name: Publish genuine integrated GitHub Wallet Beta prerelease
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$GUI_TAG" -R ati1993de/vmrx-node-miner >/dev/null 2>&1; then
+            echo "Wallet beta release $GUI_TAG already exists, refusing to replace it"
+            exit 1
+          fi
+          gh release create "$GUI_TAG" \
+            publish/VMRX-Node-Miner-wallet-beta-windows-x64.zip \
+            publish/VMRX-Node-Miner-wallet-beta-linux-x64.tar.gz \
+            publish/SHA256SUMS \
+            --repo ati1993de/vmrx-node-miner --target "$GITHUB_SHA" --prerelease \
+            --title 'VMRX Node & Miner + Wallet Beta 1 (Windows/Linux)' \
+            --notes-file publish/RELEASE_NOTES.md
+          gh release view "$GUI_TAG" -R ati1993de/vmrx-node-miner --json tagName,isPrerelease,assets
