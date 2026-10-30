@@ -12,6 +12,14 @@ VMRX Node & Miner is a desktop application for monitoring and controlling a **lo
 
 > **Mainnet compatibility:** The Windows v0.1.1 package is obsolete: its Core starts at genesis but rejects historic mainnet block 1. The **v0.1.2** release replaces it with native **`core/vmrxd.exe`**, the original VMRX logo and MinGW dependencies, built from the fixed Core source. Its release workflow requires real P2P synchronization and matching hashes at heights 0, 1, 2, 10, 100 and 1193. The Linux GUI is distributed separately from the Linux Core. This GUI controls the node and CPU miner; it is **not a wallet**.
 
+## Actual VMRX block rewards (Core consensus)
+
+VMRX does **not** pay a fixed 0.6 VMRX per mined block. The native Core calculates a **declining, supply-dependent RandomX mining subsidy** (roughly 35 VMRX at the beginning of mainnet), with **0.6 VMRX only as the later tail-emission floor**. There are no scheduled Bitcoin-like reward halvings and no fixed maximum supply.
+
+**Historic block 1** has an explicitly disclosed one-time **200,000 VMRX founder premine** plus **35.184304979968 VMRX** ordinary subsidy, totaling **200,035.184304979968 VMRX** in that block. After the premine, the theoretical unpenalized base subsidy for block 2 is **34.802768144669 VMRX**. Subsequent rewards vary with cumulative emission, possible block-weight penalties and transaction fees. Coinbase outputs mature after **60 blocks**. **The desktop GUI does not set reward policy**; the consensus Core and actual on-chain block header are authoritative.
+
+Source: [VMRX Core README](https://github.com/ati1993de/vmrx-core#block-rewards-and-emission--important-clarification) · [Verified reward formula and premine](https://github.com/ati1993de/vmrx-core/blob/main/docs/EMISSION.md).
+
 ## Features
 
 | Feature | v0.1.1 Windows release |
